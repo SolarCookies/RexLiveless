@@ -40,7 +40,6 @@
 #include <psapi.h>
 #else
 #include <dlfcn.h>
-#include <link.h>
 #endif
 
 namespace rexglue_guide::live {
