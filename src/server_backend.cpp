@@ -83,7 +83,8 @@ class ServerBackend final : public Backend {
         gamerpic_dir_(data_dir / "gamerpics"),
         theme_dir_(data_dir / "themes"),
         title_dir_(data_dir / "titles"),
-        game_gamerpic_dir_(data_dir / "game_gamerpics") {
+        game_gamerpic_dir_(data_dir / "game_gamerpics"),
+        achievement_icon_dir_(data_dir / "achievement_icons") {
     const char* env = std::getenv("REXLIVELESS_SERVER");
     server_url_ = env && *env ? env : kDefaultServer;
     http::ParseUrl(server_url_, &endpoint_);
@@ -492,7 +493,7 @@ class ServerBackend final : public Backend {
         const json j = json::parse(r.body);
         for (const json& a : j.value("achievements", json::array())) {
           detail.achievements.push_back({a.value("id", 0u), a.value("gamerscore", 0u), a.value("label", ""),
-                                         a.value("unlocked", int64_t(0))});
+                                         a.value("unlocked", int64_t(0)), a.value("icon", int64_t(0))});
         }
         for (const json& b : j.value("boards", json::array())) {
           detail.boards.push_back({b.value("id", 0u), b.value("name", ""), b.value("rank", 0u), b.value("total", 0u),
@@ -574,6 +575,59 @@ class ServerBackend final : public Backend {
       PublishSnapshot();
       done({});
     });
+  }
+
+  bool is_admin() const override { return signed_in_ && is_admin_; }
+
+  void AchievementIconIds(const std::string& title_id,
+                          std::function<void(const Result&, std::vector<uint32_t>)> done) override {
+    worker_.Post(endpoint_, "GET", "/api/titles/" + title_id + "/achievement-icons", "", "",
+                 [done](const http::Response& r) {
+                   if (r.status != 200) return done({false, ErrorOf(r)}, {});
+                   std::vector<uint32_t> ids;
+                   try {
+                     for (const auto& [id, version] : json::parse(r.body).value("icons", json::object()).items()) {
+                       ids.push_back(uint32_t(std::strtoul(id.c_str(), nullptr, 10)));
+                     }
+                   } catch (...) {
+                     return done({false, "The server's answer couldn't be read."}, {});
+                   }
+                   done({}, std::move(ids));
+                 });
+  }
+
+  void UploadAchievementIcon(const std::string& title_id, uint32_t id, std::string image, Callback done) override {
+    const bool png = image.size() > 4 && image.compare(1, 3, "PNG") == 0;
+    worker_.Post(endpoint_, "PUT", "/api/titles/" + title_id + "/achievements/" + std::to_string(id) + "/icon",
+                 std::move(image), token_,
+                 [done](const http::Response& r) {
+                   if (done) done(r.status == 200 ? Result{} : Result{false, ErrorOf(r)});
+                 },
+                 png ? "image/png" : "image/jpeg");
+  }
+
+  // Kept in <data dir>/achievement_icons/<title>_<id>_<version>.img.
+  std::string AchievementIconImage(const std::string& title_id, uint32_t id, int64_t version) override {
+    if (!version) return {};
+    const std::string name = title_id + "_" + std::to_string(id) + "_" + std::to_string(version);
+    if (auto it = achievement_icons_.find(name); it != achievement_icons_.end()) return it->second;
+    const auto path = achievement_icon_dir_ / (name + ".img");
+    if (std::ifstream file(path, std::ios::binary); file) {
+      std::string image((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+      if (!image.empty()) return achievement_icons_[name] = std::move(image);
+    }
+    if (achievement_icons_requested_.insert(name).second) {
+      const std::string url = "/api/titles/" + title_id + "/achievements/" + std::to_string(id) + "/icon?v=" +
+                              std::to_string(version);
+      images_.Post(endpoint_, "GET", url, "", "", [this, name, path](const http::Response& r) {
+        if (r.status != 200 || r.body.empty()) return;  // not asked again: the icon is gone
+        std::error_code ec;
+        std::filesystem::create_directories(achievement_icon_dir_, ec);
+        std::ofstream(path, std::ios::binary | std::ios::trunc) << r.body;
+        achievement_icons_[name] = r.body;
+      });
+    }
+    return {};
   }
 
   bool connected() const override { return connected_; }
@@ -744,6 +798,7 @@ class ServerBackend final : public Backend {
     newest_message_ = newest_message;
     own_photo_ = j.value("photo", 0);
     theme_quota_ = j.value("theme_quota", 0);
+    is_admin_ = j.value("admin", false);
     if (j.value("themes_version", themes_version_) != themes_version_ && !themes_in_flight_) ListThemes();
     if (j.value("titles_version", titles_version_) != titles_version_ && !titles_in_flight_) ListTitles();
     ApplyGamerpicList(j);
@@ -986,6 +1041,7 @@ class ServerBackend final : public Backend {
   std::filesystem::path theme_dir_;
   std::filesystem::path title_dir_;
   std::filesystem::path game_gamerpic_dir_;
+  std::filesystem::path achievement_icon_dir_;
   std::string server_url_;
   http::Endpoint endpoint_;
   http::Worker worker_;
@@ -1015,6 +1071,9 @@ class ServerBackend final : public Backend {
   bool themes_listed_ = false;
   bool themes_in_flight_ = false;
   int theme_quota_ = 0;
+  bool is_admin_ = false;
+  std::map<std::string, std::string> achievement_icons_;  // "<title>_<id>_<version>" -> file
+  std::set<std::string> achievement_icons_requested_;
   int theme_in_use_ = 0;
   std::map<std::string, std::string> theme_images_;
   std::set<std::string> theme_images_requested_;

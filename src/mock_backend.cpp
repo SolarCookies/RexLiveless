@@ -246,6 +246,15 @@ class MockBackend final : public Backend {
     done({false, "The Gamerpic Database needs a RexLiveless server."});
   }
 
+  bool is_admin() const override { return false; }
+  void AchievementIconIds(const std::string&, std::function<void(const Result&, std::vector<uint32_t>)> done) override {
+    done({false, "Achievement icons need a RexLiveless server."}, {});
+  }
+  void UploadAchievementIcon(const std::string&, uint32_t, std::string, Callback done) override {
+    done({false, "Achievement icons need a RexLiveless server."});
+  }
+  std::string AchievementIconImage(const std::string&, uint32_t, int64_t) override { return {}; }
+
   const TitleInfo* title(const std::string&) const override { return nullptr; }
   std::string TitleIcon(const std::string&, int64_t) override { return {}; }
   void ReportTitleInfo(const std::string&, const std::string&, uint32_t, uint32_t,

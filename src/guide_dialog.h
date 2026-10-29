@@ -116,6 +116,9 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   // Presence and unlocked achievements for the server, every few seconds.
   void ReportTitle();
   ImTextureID AchievementIcon(const rex::system::AchievementInfo& info);
+  void UploadAchievementIcons(Backend& backend, const std::string& title_id);
+  // Another player's achievement's icon from the server (*loading while it downloads).
+  ImTextureID RemoteAchievementIcon(const std::string& title_id, uint32_t id, int64_t version, bool* loading);
   // The running game's leaderboards to list: its SPA's names with the
   // server's (admins') over them.
   std::vector<std::pair<uint32_t, std::string>> ListedLeaderboards();
@@ -332,6 +335,7 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   float slide_ = 0.0f;
   float time_ = 0.0f;
   float last_report_ = -100.0f;
+  std::string achievement_icons_checked_;  // the title UploadAchievementIcons has looked at
   // Profiles' games from the server, by gamertag and by "gamertag|title id";
   // read again when a page shows them after kProfileRefresh.
   template <typename T>

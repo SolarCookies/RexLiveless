@@ -96,6 +96,7 @@ struct AchievementRecord {
   uint32_t gamerscore = 0;
   std::string label;
   int64_t unlocked = 0;  // unix seconds
+  int64_t icon = 0;      // on a profile: its icon's version on the server, 0 if it has none
 };
 
 // A game as the server lists it: what the games report, with what admins set
@@ -254,6 +255,16 @@ class Backend {
   // A player's achievements and leaderboard places in one game.
   virtual void PlayerGame(const std::string& gamertag, const std::string& title_id,
                           std::function<void(const Result&, PlayedGameDetail)> done) = 0;
+
+  // Achievement icons, for profiles: an admin's Guide uploads the running
+  // game's that the server hasn't got. The account is an admin.
+  virtual bool is_admin() const = 0;
+  // The ids of a game's achievements whose icon the server has.
+  virtual void AchievementIconIds(const std::string& title_id,
+                                  std::function<void(const Result&, std::vector<uint32_t>)> done) = 0;
+  virtual void UploadAchievementIcon(const std::string& title_id, uint32_t id, std::string image, Callback done) = 0;
+  // An icon's file at `version` (AchievementRecord::icon), or empty while it downloads.
+  virtual std::string AchievementIconImage(const std::string& title_id, uint32_t id, int64_t version) = 0;
 
   virtual bool connected() const = 0;
   virtual std::string server_name() const = 0;

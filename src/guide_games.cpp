@@ -6,12 +6,19 @@
 #include <cstdlib>
 #include <cmath>
 #include <ctime>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <span>
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include <rex/logging.h>
+#include <rex/runtime.h>
 #include <rex/system/kernel_state.h>
+#include <rex/system/util/xdbf_utils.h>
 #include <rex/ui/overlay/achievement_icon_cache.h>
 
 #include "guide_dialog.h"
@@ -199,6 +206,11 @@ void GuideDialog::PlayerGameRows(std::vector<Row>& rows, Page& page) {
     if (auto it = local.find(a.id); it != local.end()) {
       row.icon = AchievementIcon(it->second);
       if (!it->second.description.empty()) row.sub = it->second.description;
+    } else if (a.icon) {
+      // From the server (an admin's Guide gave it the game's icons).
+      row.lazy_icon = [this, title_id, id = a.id, v = a.icon](bool* loading) {
+        return RemoteAchievementIcon(title_id, id, v, loading);
+      };
     } else {
       row.glyph = Glyph::kTrophy;
     }
@@ -306,6 +318,7 @@ void GuideDialog::ReportTitle() {
   std::map<uint32_t, std::string> boards;
   for (const auto& b : stats::Leaderboards()) boards[b.id] = b.name;
   player1->ReportTitleInfo(title_id, config_.title_name, achievements_total, gamerscore_total, boards);
+  UploadAchievementIcons(*player1, title_id);
   std::vector<AchievementRecord> unlocked;
   for (const auto& a : manager.ListAchievements()) {
     if (!manager.IsUnlocked(a.id)) continue;
@@ -325,6 +338,73 @@ ImTextureID GuideDialog::AchievementIcon(const rex::system::AchievementInfo& inf
     icon_cache_ = std::make_unique<rex::ui::AchievementIconCache>(config_.immediate_drawer, runtime);
   }
   return reinterpret_cast<ImTextureID>(icon_cache_->GetIcon(info));
+}
+
+namespace {
+
+// An achievement's icon file where the runtime looks for it
+// (rex::ui::AchievementIconCache): its own metadata path, icons/<image id>.png
+// in the metadata, then the title's XDBF image. Empty if none.
+std::string AchievementIconFile(rex::system::KernelState* kernel, const rex::system::AchievementInfo& info) {
+  rex::Runtime* runtime = kernel->emulator();
+  auto metadata = [runtime](const std::filesystem::path& relative) -> std::string {
+    if (!runtime || relative.empty()) return {};
+    if (const auto path = runtime->FindMetadataPath(relative)) {
+      if (std::ifstream file(*path, std::ios::binary); file) {
+        return std::string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+      }
+    }
+    if (const auto embedded = runtime->FindEmbeddedMetadata(relative)) {
+      return std::string(reinterpret_cast<const char*>(embedded->bytes.data()), embedded->bytes.size());
+    }
+    return {};
+  };
+  std::string file = metadata(info.icon_path);
+  if (file.empty() && info.image_id) file = metadata(std::filesystem::path("icons") / (std::to_string(info.image_id) + ".png"));
+  if (file.empty() && info.image_id) {
+    const auto xdbf = kernel->title_xdbf();
+    if (xdbf.is_valid()) {
+      if (const auto block = xdbf.GetEntry(rex::system::util::XdbfSection::kImage, info.image_id)) {
+        file.assign(reinterpret_cast<const char*>(block.buffer), block.size);
+      }
+    }
+  }
+  return file;
+}
+
+}  // namespace
+
+// An admin's Guide gives the server the running game's achievement icons it
+// hasn't got, so profiles show them to anyone (once a session).
+void GuideDialog::UploadAchievementIcons(Backend& backend, const std::string& title_id) {
+  if (!backend.is_admin() || achievement_icons_checked_ == title_id) return;
+  achievement_icons_checked_ = title_id;
+  backend.AchievementIconIds(title_id, [this, &backend, title_id](const Result& r, std::vector<uint32_t> have) {
+    auto* kernel = REX_KERNEL_STATE();
+    if (!r.ok || !kernel) {
+      achievement_icons_checked_.clear();  // again on a later report
+      return;
+    }
+    int sent = 0;
+    for (const auto& a : kernel->achievements().ListAchievements()) {
+      if (std::find(have.begin(), have.end(), a.id) != have.end()) continue;
+      std::string file = AchievementIconFile(kernel, a);
+      if (file.empty()) continue;
+      backend.UploadAchievementIcon(title_id, a.id, std::move(file), nullptr);
+      ++sent;
+    }
+    if (sent) REXLOG_INFO("Rexglue Guide: uploading {} achievement icon(s) for {}", sent, title_id);
+  });
+}
+
+// Another player's achievement in a game the server has its icon for.
+ImTextureID GuideDialog::RemoteAchievementIcon(const std::string& title_id, uint32_t id, int64_t version,
+                                               bool* loading) {
+  const std::string file = backend_->AchievementIconImage(title_id, id, version);
+  if (loading) *loading = file.empty();
+  if (file.empty()) return 0;
+  const std::string key = "ach:" + title_id + "/" + std::to_string(id) + "_" + std::to_string(version);
+  return textures_.Picture(key, std::span(reinterpret_cast<const uint8_t*>(file.data()), file.size()));
 }
 
 }  // namespace rexglue_guide
