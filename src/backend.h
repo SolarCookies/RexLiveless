@@ -24,7 +24,7 @@ struct Profile {
   uint32_t gamerscore = 0;
   std::string motto;
   // The systems they've played on, from the first: "windows", "linux",
-  // "macos", "android", "ios", "switch".
+  // "macos", "android", "ios", "switch", "playstation".
   std::vector<std::string> platforms;
 };
 

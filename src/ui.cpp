@@ -284,64 +284,43 @@ void Spinner(ImDrawList* dl, ImVec2 center, float radius, float time, ImU32 col)
   }
 }
 
-// Simple marks drawn from shapes (no logo files), on a 24-unit grid.
+// On a 24-unit grid, all white: the systems' logos (assets/icons), Windows'
+// panes drawn, and iOS by name.
 void PlatformBadge(ImDrawList* dl, Textures& textures, std::string_view platform, ImVec2 min, float size,
                    float alpha) {
   const float u = size / 24.0f;
   auto at = [&](float x, float y) { return ImVec2(min.x + x * u, min.y + y * u); };
-  auto rgb = [alpha](int r, int g, int b) { return WithAlpha(IM_COL32(r, g, b, 255), alpha); };
-  const ImU32 tile = WithAlpha(IM_COL32(242, 242, 242, 235), alpha);
+  // White marks on a dark see-through tile, readable on any theme.
+  const ImU32 tile = WithAlpha(IM_COL32(0, 0, 0, 110), alpha);
+  const ImU32 white = WithAlpha(IM_COL32(255, 255, 255, 255), alpha);
   auto background = [&] { dl->AddRectFilled(min, at(24, 24), tile, size * 0.22f); };
+  auto logo = [&](assets::Icon icon) {
+    background();
+    Image(dl, textures.Icon(icon), at(4.5f, 4.5f), at(19.5f, 19.5f), white);
+  };
   if (platform == "windows") {
     background();
-    const ImU32 blue = rgb(0, 164, 239);
-    dl->AddRectFilled(at(5, 5), at(11.3f, 11.3f), blue);
-    dl->AddRectFilled(at(12.7f, 5), at(19, 11.3f), blue);
-    dl->AddRectFilled(at(5, 12.7f), at(11.3f, 19), blue);
-    dl->AddRectFilled(at(12.7f, 12.7f), at(19, 19), blue);
+    dl->AddRectFilled(at(5, 5), at(11.3f, 11.3f), white);
+    dl->AddRectFilled(at(12.7f, 5), at(19, 11.3f), white);
+    dl->AddRectFilled(at(5, 12.7f), at(11.3f, 19), white);
+    dl->AddRectFilled(at(12.7f, 12.7f), at(19, 19), white);
   } else if (platform == "linux") {
-    // A penguin.
-    background();
-    const ImU32 black = rgb(28, 28, 30), white = rgb(250, 250, 250), yellow = rgb(250, 190, 30);
-    dl->AddEllipseFilled(at(12, 13), ImVec2(6.2f * u, 8.6f * u), black);
-    dl->AddEllipseFilled(at(12, 15.2f), ImVec2(4.1f * u, 5.6f * u), white);
-    dl->AddCircleFilled(at(10.2f, 8.4f), 1.5f * u, white);
-    dl->AddCircleFilled(at(13.8f, 8.4f), 1.5f * u, white);
-    dl->AddCircleFilled(at(10.5f, 8.6f), 0.7f * u, black);
-    dl->AddCircleFilled(at(13.5f, 8.6f), 0.7f * u, black);
-    dl->AddTriangleFilled(at(10.4f, 10.4f), at(13.6f, 10.4f), at(12, 12.4f), yellow);
-    dl->AddEllipseFilled(at(8.6f, 21.2f), ImVec2(2.8f * u, 1.3f * u), yellow);
-    dl->AddEllipseFilled(at(15.4f, 21.2f), ImVec2(2.8f * u, 1.3f * u), yellow);
+    logo(assets::Icon::kLinux);
   } else if (platform == "macos") {
-    // The Apple logo (white, square-padded: assets/icons/apple.png), tinted grey.
-    background();
-    Image(dl, textures.Icon(assets::Icon::kApple), at(4.5f, 4.5f), at(19.5f, 19.5f), rgb(88, 88, 94));
+    logo(assets::Icon::kApple);
   } else if (platform == "android") {
-    // The robot's head and antennae.
-    background();
-    const ImU32 green = rgb(61, 220, 132);
-    dl->PathArcTo(at(12, 16.5f), 8 * u, kPi, 2 * kPi, 24);
-    dl->PathFillConvex(green);
-    dl->AddCircleFilled(at(9, 13.2f), 1.1f * u, tile);
-    dl->AddCircleFilled(at(15, 13.2f), 1.1f * u, tile);
-    dl->AddLine(at(8, 10), at(6.2f, 6.8f), green, 1.4f * u);
-    dl->AddLine(at(16, 10), at(17.8f, 6.8f), green, 1.4f * u);
+    logo(assets::Icon::kAndroid);
   } else if (platform == "ios") {
     // Its name: half the tile tall, narrowed if it would be wider than 20 units.
     background();
     float text_size = size * 0.5f;
     if (const float w = Measure(Semibold(), text_size, "iOS").x; w > 20 * u) text_size *= 20 * u / w;
     const ImVec2 ts = Measure(Semibold(), text_size, "iOS");
-    Text(dl, Semibold(), text_size, ImVec2(min.x + (size - ts.x) * 0.5f, min.y + (size - ts.y) * 0.5f), rgb(36, 36, 40),
-         "iOS");
+    Text(dl, Semibold(), text_size, ImVec2(min.x + (size - ts.x) * 0.5f, min.y + (size - ts.y) * 0.5f), white, "iOS");
   } else if (platform == "switch") {
-    // The red and blue Joy-Con either side of the screen.
-    background();
-    dl->AddRectFilled(at(3.6f, 5), at(8.6f, 19), rgb(255, 69, 84), 2.6f * u, ImDrawFlags_RoundCornersLeft);
-    dl->AddRectFilled(at(8.6f, 5), at(15.4f, 19), rgb(44, 44, 48));
-    dl->AddRectFilled(at(15.4f, 5), at(20.4f, 19), rgb(0, 195, 227), 2.6f * u, ImDrawFlags_RoundCornersRight);
-    dl->AddCircleFilled(at(6.1f, 9.2f), 1.2f * u, rgb(44, 44, 48));
-    dl->AddCircleFilled(at(17.9f, 14.8f), 1.2f * u, rgb(44, 44, 48));
+    logo(assets::Icon::kSwitch);
+  } else if (platform == "playstation") {
+    logo(assets::Icon::kPlayStation);
   }
 }
 

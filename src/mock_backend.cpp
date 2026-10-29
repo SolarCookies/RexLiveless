@@ -19,6 +19,8 @@ namespace rexglue_guide {
 const char* ThisPlatform() {
 #if defined(__SWITCH__)
   return "switch";
+#elif defined(__ORBIS__) || defined(__PROSPERO__)  // PS4, PS5
+  return "playstation";
 #elif defined(__ANDROID__)
   return "android";
 #elif defined(__APPLE__) && TARGET_OS_IPHONE

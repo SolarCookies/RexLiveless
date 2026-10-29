@@ -84,9 +84,9 @@ enum class Glyph { kBell, kPeople, kTrophy, kCrate, kInvite, kAddPerson, kInfo, 
 void DrawGlyph(ImDrawList* dl, Glyph glyph, ImVec2 center, float size, ImU32 col);
 void Spinner(ImDrawList* dl, ImVec2 center, float radius, float time, ImU32 col);
 class Textures;
-// A system's badge (Profile::platforms): a light tile `size` across from
-// `min`, with the system's mark in its colours. Nothing for one it doesn't
-// know.
+// A system's badge (Profile::platforms): a dark see-through tile `size`
+// across from `min`, with the system's mark in white. Nothing for one it
+// doesn't know.
 void PlatformBadge(ImDrawList* dl, Textures& textures, std::string_view platform, ImVec2 min, float size,
                    float alpha);
 

@@ -23,7 +23,12 @@ enum class Icon {
   kKeyCursorRb,
   kKeyStart,
   kKeyLt,
-  kApple,  // the macOS badge's mark (ui::PlatformBadge)
+  // The systems' badge marks (ui::PlatformBadge): white, square-padded.
+  kApple,
+  kLinux,
+  kAndroid,
+  kSwitch,
+  kPlayStation,
   kCount,
 };
 

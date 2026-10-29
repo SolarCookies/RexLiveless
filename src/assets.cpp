@@ -57,6 +57,18 @@ constexpr uint8_t kIconKeyLt[] = {
 constexpr uint8_t kIconApple[] = {
 #embed "../assets/icons/apple.png"
 };
+constexpr uint8_t kIconLinux[] = {
+#embed "../assets/icons/linux.png"
+};
+constexpr uint8_t kIconAndroid[] = {
+#embed "../assets/icons/android.png"
+};
+constexpr uint8_t kIconSwitch[] = {
+#embed "../assets/icons/switch.png"
+};
+constexpr uint8_t kIconPlayStation[] = {
+#embed "../assets/icons/playstation.png"
+};
 
 constexpr uint8_t kGamerpic0[] = {
 #embed "../assets/gamerpics/0.png"
@@ -160,7 +172,7 @@ constexpr std::span<const uint8_t> kIcons[] = {
     kIconAccount, kIconFriends,  kIconPreferences, kIconPrivacy,      kIconSystem,
     kIconTurnOff, kIconApps,     kIconPin,         kIconMusic,        kIconKeyRb,
     kIconKeyLs,   kIconKeyCursorLb, kIconKeyCursorRb, kIconKeyStart,  kIconKeyLt,
-    kIconApple,
+    kIconApple,   kIconLinux,   kIconAndroid, kIconSwitch,    kIconPlayStation,
 };
 static_assert(std::size(kIcons) == size_t(Icon::kCount));
 
