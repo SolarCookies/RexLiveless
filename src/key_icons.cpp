@@ -7,170 +7,168 @@
 #include <cstring>
 #include <iterator>
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc23-extensions"
 
 namespace rexglue_guide::assets {
 namespace {
 
 constexpr uint8_t k_xbox_button_color_a[] = {
-#embed "../assets/keys/xbox_button_color_a.png"
+#include "keys/xbox_button_color_a.png.inc"
 };
 constexpr uint8_t k_xbox_button_color_b[] = {
-#embed "../assets/keys/xbox_button_color_b.png"
+#include "keys/xbox_button_color_b.png.inc"
 };
 constexpr uint8_t k_xbox_button_color_x[] = {
-#embed "../assets/keys/xbox_button_color_x.png"
+#include "keys/xbox_button_color_x.png.inc"
 };
 constexpr uint8_t k_xbox_button_color_y[] = {
-#embed "../assets/keys/xbox_button_color_y.png"
+#include "keys/xbox_button_color_y.png.inc"
 };
 constexpr uint8_t k_xbox_lb[] = {
-#embed "../assets/keys/xbox_lb.png"
+#include "keys/xbox_lb.png.inc"
 };
 constexpr uint8_t k_xbox_rb[] = {
-#embed "../assets/keys/xbox_rb.png"
+#include "keys/xbox_rb.png.inc"
 };
 constexpr uint8_t k_xbox_lt[] = {
-#embed "../assets/keys/xbox_lt.png"
+#include "keys/xbox_lt.png.inc"
 };
 constexpr uint8_t k_xbox_rt[] = {
-#embed "../assets/keys/xbox_rt.png"
+#include "keys/xbox_rt.png.inc"
 };
 constexpr uint8_t k_xbox_stick_l_press[] = {
-#embed "../assets/keys/xbox_stick_l_press.png"
+#include "keys/xbox_stick_l_press.png.inc"
 };
 constexpr uint8_t k_xbox_button_start[] = {
-#embed "../assets/keys/xbox_button_start.png"
+#include "keys/xbox_button_start.png.inc"
 };
 constexpr uint8_t k_xbox_button_menu[] = {
-#embed "../assets/keys/xbox_button_menu.png"
+#include "keys/xbox_button_menu.png.inc"
 };
 constexpr uint8_t k_playstation_button_color_cross[] = {
-#embed "../assets/keys/playstation_button_color_cross.png"
+#include "keys/playstation_button_color_cross.png.inc"
 };
 constexpr uint8_t k_playstation_button_color_circle[] = {
-#embed "../assets/keys/playstation_button_color_circle.png"
+#include "keys/playstation_button_color_circle.png.inc"
 };
 constexpr uint8_t k_playstation_button_color_square[] = {
-#embed "../assets/keys/playstation_button_color_square.png"
+#include "keys/playstation_button_color_square.png.inc"
 };
 constexpr uint8_t k_playstation_button_color_triangle[] = {
-#embed "../assets/keys/playstation_button_color_triangle.png"
+#include "keys/playstation_button_color_triangle.png.inc"
 };
 constexpr uint8_t k_playstation_trigger_l1[] = {
-#embed "../assets/keys/playstation_trigger_l1.png"
+#include "keys/playstation_trigger_l1.png.inc"
 };
 constexpr uint8_t k_playstation_trigger_r1[] = {
-#embed "../assets/keys/playstation_trigger_r1.png"
+#include "keys/playstation_trigger_r1.png.inc"
 };
 constexpr uint8_t k_playstation_trigger_l2[] = {
-#embed "../assets/keys/playstation_trigger_l2.png"
+#include "keys/playstation_trigger_l2.png.inc"
 };
 constexpr uint8_t k_playstation_trigger_r2[] = {
-#embed "../assets/keys/playstation_trigger_r2.png"
+#include "keys/playstation_trigger_r2.png.inc"
 };
 constexpr uint8_t k_playstation_button_l3[] = {
-#embed "../assets/keys/playstation_button_l3.png"
+#include "keys/playstation_button_l3.png.inc"
 };
 constexpr uint8_t k_playstation3_button_start[] = {
-#embed "../assets/keys/playstation3_button_start.png"
+#include "keys/playstation3_button_start.png.inc"
 };
 constexpr uint8_t k_playstation4_button_options[] = {
-#embed "../assets/keys/playstation4_button_options.png"
+#include "keys/playstation4_button_options.png.inc"
 };
 constexpr uint8_t k_playstation5_button_options[] = {
-#embed "../assets/keys/playstation5_button_options.png"
+#include "keys/playstation5_button_options.png.inc"
 };
 constexpr uint8_t k_switch_button_a[] = {
-#embed "../assets/keys/switch_button_a.png"
+#include "keys/switch_button_a.png.inc"
 };
 constexpr uint8_t k_switch_button_b[] = {
-#embed "../assets/keys/switch_button_b.png"
+#include "keys/switch_button_b.png.inc"
 };
 constexpr uint8_t k_switch_button_x[] = {
-#embed "../assets/keys/switch_button_x.png"
+#include "keys/switch_button_x.png.inc"
 };
 constexpr uint8_t k_switch_button_y[] = {
-#embed "../assets/keys/switch_button_y.png"
+#include "keys/switch_button_y.png.inc"
 };
 constexpr uint8_t k_switch_button_l[] = {
-#embed "../assets/keys/switch_button_l.png"
+#include "keys/switch_button_l.png.inc"
 };
 constexpr uint8_t k_switch_button_r[] = {
-#embed "../assets/keys/switch_button_r.png"
+#include "keys/switch_button_r.png.inc"
 };
 constexpr uint8_t k_switch_button_zl[] = {
-#embed "../assets/keys/switch_button_zl.png"
+#include "keys/switch_button_zl.png.inc"
 };
 constexpr uint8_t k_switch_button_zr[] = {
-#embed "../assets/keys/switch_button_zr.png"
+#include "keys/switch_button_zr.png.inc"
 };
 constexpr uint8_t k_switch_stick_l_press[] = {
-#embed "../assets/keys/switch_stick_l_press.png"
+#include "keys/switch_stick_l_press.png.inc"
 };
 constexpr uint8_t k_switch_button_plus[] = {
-#embed "../assets/keys/switch_button_plus.png"
+#include "keys/switch_button_plus.png.inc"
 };
 constexpr uint8_t k_steamdeck_button_a[] = {
-#embed "../assets/keys/steamdeck_button_a.png"
+#include "keys/steamdeck_button_a.png.inc"
 };
 constexpr uint8_t k_steamdeck_button_b[] = {
-#embed "../assets/keys/steamdeck_button_b.png"
+#include "keys/steamdeck_button_b.png.inc"
 };
 constexpr uint8_t k_steamdeck_button_x[] = {
-#embed "../assets/keys/steamdeck_button_x.png"
+#include "keys/steamdeck_button_x.png.inc"
 };
 constexpr uint8_t k_steamdeck_button_y[] = {
-#embed "../assets/keys/steamdeck_button_y.png"
+#include "keys/steamdeck_button_y.png.inc"
 };
 constexpr uint8_t k_steamdeck_button_l1[] = {
-#embed "../assets/keys/steamdeck_button_l1.png"
+#include "keys/steamdeck_button_l1.png.inc"
 };
 constexpr uint8_t k_steamdeck_button_r1[] = {
-#embed "../assets/keys/steamdeck_button_r1.png"
+#include "keys/steamdeck_button_r1.png.inc"
 };
 constexpr uint8_t k_steamdeck_button_l2[] = {
-#embed "../assets/keys/steamdeck_button_l2.png"
+#include "keys/steamdeck_button_l2.png.inc"
 };
 constexpr uint8_t k_steamdeck_button_r2[] = {
-#embed "../assets/keys/steamdeck_button_r2.png"
+#include "keys/steamdeck_button_r2.png.inc"
 };
 constexpr uint8_t k_steamdeck_stick_l_press[] = {
-#embed "../assets/keys/steamdeck_stick_l_press.png"
+#include "keys/steamdeck_stick_l_press.png.inc"
 };
 constexpr uint8_t k_steamdeck_button_options[] = {
-#embed "../assets/keys/steamdeck_button_options.png"
+#include "keys/steamdeck_button_options.png.inc"
 };
 constexpr uint8_t k_keyboard_arrow_left[] = {
-#embed "../assets/keys/keyboard_arrow_left.png"
+#include "keys/keyboard_arrow_left.png.inc"
 };
 constexpr uint8_t k_keyboard_arrow_right[] = {
-#embed "../assets/keys/keyboard_arrow_right.png"
+#include "keys/keyboard_arrow_right.png.inc"
 };
 constexpr uint8_t k_keyboard_tab_icon[] = {
-#embed "../assets/keys/keyboard_tab_icon.png"
+#include "keys/keyboard_tab_icon.png.inc"
 };
 constexpr uint8_t k_keyboard_shift_icon[] = {
-#embed "../assets/keys/keyboard_shift_icon.png"
+#include "keys/keyboard_shift_icon.png.inc"
 };
 constexpr uint8_t k_keyboard_capslock_icon[] = {
-#embed "../assets/keys/keyboard_capslock_icon.png"
+#include "keys/keyboard_capslock_icon.png.inc"
 };
 constexpr uint8_t k_keyboard_backspace_icon[] = {
-#embed "../assets/keys/keyboard_backspace_icon.png"
+#include "keys/keyboard_backspace_icon.png.inc"
 };
 constexpr uint8_t k_keyboard_space_icon[] = {
-#embed "../assets/keys/keyboard_space_icon.png"
+#include "keys/keyboard_space_icon.png.inc"
 };
 constexpr uint8_t k_keyboard_enter[] = {
-#embed "../assets/keys/keyboard_enter.png"
+#include "keys/keyboard_enter.png.inc"
 };
 constexpr uint8_t k_mouse_left[] = {
-#embed "../assets/keys/mouse_left.png"
+#include "keys/mouse_left.png.inc"
 };
 constexpr uint8_t k_keyboard_escape[] = {
-#embed "../assets/keys/keyboard_escape.png"
+#include "keys/keyboard_escape.png.inc"
 };
 
 struct KeyIconFile {
@@ -244,4 +242,3 @@ std::span<const uint8_t> KeyIconPng(std::string_view name) {
 
 }  // namespace rexglue_guide::assets
 
-#pragma clang diagnostic pop

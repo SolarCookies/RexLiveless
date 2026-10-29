@@ -47,6 +47,20 @@ function(rexglue_guide_attach target)
     ${dir}/src/xam_live.cpp
   )
   target_sources(${target} PRIVATE ${sources})
+  # src/assets.cpp includes "<asset>.inc" for each file in assets/: the bytes as
+  # a comma-separated list, generated here since #embed needs clang 19.
+  set(inc_dir ${CMAKE_BINARY_DIR}/rexglue_guide_assets)
+  file(GLOB_RECURSE asset_files CONFIGURE_DEPENDS ${dir}/assets/*)
+  foreach(asset ${asset_files})
+    file(RELATIVE_PATH rel ${dir}/assets ${asset})
+    set(inc ${inc_dir}/${rel}.inc)
+    if(NOT EXISTS ${inc} OR ${asset} IS_NEWER_THAN ${inc})
+      file(READ ${asset} hex HEX)
+      string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," hex "${hex}")
+      file(WRITE ${inc} "${hex}\n")
+    endif()
+  endforeach()
+  target_include_directories(${target} PRIVATE ${inc_dir})
   # The Guide reads its settings with getenv, which MSVC's CRT marks deprecated
   # in favour of _dupenv_s (Windows only).
   if(WIN32)
