@@ -343,6 +343,8 @@ void GuideDialog::Pop() {
     Stack().pop_back();
     slide_ = -1.0f;
     audio::Play(Sound::kBack);
+    // Backed out of choosing a gamerpic for a profile already made.
+    if (Stack().size() == 1) FinishSignUp();
   } else if (screen_ == Screen::kGuide) {
     Close();
   } else {

@@ -141,7 +141,9 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   void AskGamertag(const std::string& title, std::function<void(std::string)> next);
   void ChooseGamerpic(int index);
   void ChangeGamerpicRows(std::vector<Row>& rows, Page& page);
+  void WithProfile(std::function<void()> next);
   void BackToProfile();
+  void FinishSignUp();
 
   // guide_game_gamerpics.cpp --------------------------------------------------
   // The gamerpic archive's games (search, then the list) and one game's grid.

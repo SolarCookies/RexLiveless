@@ -64,7 +64,7 @@ void GuideDialog::StartCreate() {
                       }
                       pending_gamertag_ = gamertag;
                       pending_password_ = *password;
-                      Push({PageKind::kGamerpics, "Choose Gamerpic", "signup"});
+                      Push({PageKind::kChangeGamerpic, "Choose Gamerpic", "signup"});
                     }});
   });
 }
@@ -96,35 +96,69 @@ void GuideDialog::ChooseGamerpic(int index) {
   const std::vector<int> choices = backend_->gamerpic_choices();
   if (index < 0 || index >= int(choices.size())) return;
   const int gamerpic = choices[index];
-  if (Current().arg == "signup") {
+  if (Current().arg == "signup" && !backend_->signed_in()) {
     Busy("Creating your profile...");
     backend_->CreateAccount(pending_gamertag_, pending_password_, gamerpic, [this](const Result& r) {
-      pending_password_.clear();
+      if (r.ok) pending_password_.clear();
       SignInDone(r);
     });
   } else {
+    // (Signing up: the profile was already made for another of the options.)
     backend_->SetGamerpic(gamerpic);
     BackToProfile();
   }
 }
 
-// Profile > Change Gamerpic: where the picture comes from.
-void GuideDialog::ChangeGamerpicRows(std::vector<Row>& rows, Page&) {
-  rows.push_back({.label = "RexLiveless Gamerpics", .activate = [this] {
-                    Push({PageKind::kGamerpics, "RexLiveless Gamerpics", "settings"});
+// Profile > Change Gamerpic, or signing up (arg "signup"): where the picture
+// comes from.
+void GuideDialog::ChangeGamerpicRows(std::vector<Row>& rows, Page& page) {
+  const std::string arg = page.arg == "signup" ? "signup" : "settings";
+  rows.push_back({.label = "RexLiveless Gamerpics", .activate = [this, arg] {
+                    Push({PageKind::kGamerpics, "RexLiveless Gamerpics", arg});
                   }});
+  // Both need the account: signing up makes it first (with the first
+  // gamerpic until another is picked).
   rows.push_back({.label = "Gamerpic Database", .sub = "From xboxgamer.pics", .activate = [this] {
-                    Push({PageKind::kGamerpicGames, "Gamerpic Database", ""});
+                    WithProfile([this] { Push({PageKind::kGamerpicGames, "Gamerpic Database", ""}); });
                   }});
-  rows.push_back({.label = "Upload Custom", .detail = "256 x 256", .activate = [this] { ChoosePhoto(); }});
+  rows.push_back({.label = "Upload Custom", .detail = "256 x 256", .activate = [this] {
+                    WithProfile([this] {
+                      ChoosePhoto();
+                      BackToProfile();  // the upload finishes on its own (PumpPhotoPicks)
+                    });
+                  }});
 }
 
-// After a gamerpic is picked: back past the pages it was picked on.
+// Runs `next` once there's an account: signing up, it's made here first.
+void GuideDialog::WithProfile(std::function<void()> next) {
+  if (backend_->signed_in()) return next();
+  Busy("Creating your profile...");
+  backend_->CreateAccount(pending_gamertag_, pending_password_, 0, [this, next](const Result& r) {
+    busy_.reset();
+    if (!r.ok) {
+      ShowMessage({"Create Profile", r.error, {"OK"}});
+      return;
+    }
+    pending_password_.clear();
+    next();
+  });
+}
+
+// After a gamerpic is picked: back past the pages it was picked on. Signing
+// up, that finishes it.
 void GuideDialog::BackToProfile() {
   while (Stack().size() > 1 && (Current().kind == PageKind::kGamerpics || Current().kind == PageKind::kGamerpicGames ||
                                 Current().kind == PageKind::kGamerpicGame || Current().kind == PageKind::kChangeGamerpic)) {
     Pop();
   }
+  FinishSignUp();
+}
+
+// A profile made while signing up is signed in: off the sign-in screen.
+void GuideDialog::FinishSignUp() {
+  if (screen_ != Screen::kSignIn || !backend_->signed_in()) return;
+  Close();
+  SignedInToast();
 }
 
 void GuideDialog::SignInDone(const Result& r) {
