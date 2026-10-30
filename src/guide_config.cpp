@@ -162,7 +162,7 @@ void GuideDialog::SaveSettings() {
 // Once changes settle (a slider is let go), and at shutdown. Without the app's
 // config file (Config::config_file) they last until the game is closed.
 void GuideDialog::FlushSettings(bool now) {
-  if (!settings_dirty_ || (!now && (time_ - settings_changed_at_ < 0.5f || dragging_slider_ >= 0))) return;
+  if (!settings_dirty_ || (!now && (time_ - settings_changed_at_ < 0.5f || list_.dragging_slider >= 0))) return;
   settings_dirty_ = false;
   if (!config_.config_file.empty()) rex::cvar::SaveConfig(config_.config_file);
 }

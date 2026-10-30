@@ -51,7 +51,14 @@ enum class PageKind {
   kChangeGamerpic,  // RexLiveless gamerpics, the Gamerpic Database or an upload
   kGamerpicGames,  // the Gamerpic Database's games; arg: the search text
   kGamerpicGame,   // a game's gamerpics, drawn as a grid; arg: its title id
+  // An app's menu (AddMenu), on its blade or in its window. arg: the menu's id,
+  // then a kMenuPath and the id of each page in from its first; the last, after
+  // a kMenuList, a choice whose options it lists.
+  kMenu,
 };
+
+constexpr char kMenuPath = '\x1f';
+constexpr char kMenuList = '\x1e';
 
 // Settings > Credits: the app's (AddCredit), then the Guide's own.
 struct Credit {
@@ -123,6 +130,56 @@ struct Row {
   std::optional<float> slider;
   std::function<void(float)> set_slider;
   float slider_step = 0.05f;
+  // A switch on the right, on or off.
+  std::optional<bool> toggle;
+  // Left and right step it (-1, 1): a choice or a number, its value the detail.
+  std::function<void(int)> step;
+  // Rows that aren't picked: a heading, text wrapped over as many lines as it
+  // takes (in text_color, else dim), or a picture across the row (width over
+  // height; 0 while there's none yet), no taller than picture_height.
+  bool header = false;
+  std::string text;
+  std::optional<ImU32> text_color;
+  ImTextureID picture = 0;
+  float picture_aspect = 0.0f;
+  float picture_height = 0.0f;
+  bool Selectable() const { return !header && text.empty() && picture_aspect <= 0.0f; }
+};
+
+// A list of rows as last drawn, and what the mouse is doing with it: the
+// Guide's open page, or a detached menu's.
+struct ListView {
+  std::vector<Row> rows;
+  std::vector<std::pair<ImVec2, ImVec2>> row_hits;
+  std::vector<std::pair<ImVec2, ImVec2>> slider_hits;  // per row; empty unless a slider
+  int dragging_slider = -1;
+  // The scroll bar as last drawn, and its knob being dragged (dragging_scroll,
+  // held drag_grab below the knob's top).
+  struct ScrollBar {
+    ImVec2 hit0, hit1;  // the mouse's area for it
+    float top = 0.0f, bottom = 0.0f;
+    float knob_y = 0.0f, knob_h = 0.0f;
+    float max = 0.0f;  // the page's scroll at the bottom
+    bool shown = false;
+  } scroll_bar;
+  bool dragging_scroll = false;
+  float drag_grab = 0.0f;
+};
+
+// What an app menu's row did, for its build function to hear next frame.
+struct MenuEvent {
+  bool chosen = false;
+  int step = 0;  // left and right, added up
+  std::optional<int> index;
+  std::optional<double> number;
+  std::optional<std::string> text;
+};
+constexpr char kMenuRow = '\x1d';  // between a page's arg and a row's id
+
+// What a list's input asks of the one showing it.
+struct ListInput {
+  int sideways = 0;  // left or right, unused by the selected row
+  bool back = false;
 };
 
 struct Prompt {

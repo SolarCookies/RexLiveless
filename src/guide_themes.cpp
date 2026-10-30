@@ -364,7 +364,7 @@ void GuideDialog::OpenDesigner(int server_id) {
 }
 
 bool GuideDialog::DesignerOpen() const {
-  for (const Page& p : stacks_[kSettingsBlade]) {
+  for (const Page& p : stacks_[size_t(BladeOf(kSettingsBlade))]) {
     if (p.kind == PageKind::kThemeDesigner) return true;
   }
   return false;

@@ -136,6 +136,46 @@ Other functions in `guide.h`:
 | `SignedIn(user)` | Whether player 0-3 has a Guide account signed in. Any thread. |
 | `SetKeyboardPad(player, buttons, lx, ly)` / `ClearKeyboardPad()` | If your app maps keyboard keys to a controller, feed that controller's state here so the keyboard opens and drives the Guide like a pad (button `0x0400` is the Guide button). The Guide's own Q/E/X/Y letter shortcuts are off while it's set. |
 
+## Your own menus
+
+`AddMenu` puts a menu of your app's on the Guide, drawn in its style (rows, switches, sliders,
+choice lists and the player's theme), so your tools needn't be plain ImGui windows. A menu is
+either a **blade** at the far left or right of the Guide's own, or a **detached** window over the
+game.
+
+```cpp
+rexglue_guide::AddMenu({
+    .id = "camera",
+    .title = "Camera",                                  // the blade's label, or the window's title
+    .place = rexglue_guide::MenuPlace::kRightBlade,     // kLeftBlade, kRightBlade or kDetached
+    .icon = camera_png,                                 // optional: white on transparent PNG/JPEG
+    .build = [](rexglue_guide::Menu& m) {               // called each frame it's shown
+      m.Choice("Source", &source, {"Webcam", "Image", "Off"});
+      m.Toggle("Mirror", &mirror);
+      m.Slider("Brightness", &brightness, 0.0f, 2.0f, 0.1f);
+      m.Page("Advanced", [](rexglue_guide::Menu& page) { page.Number("Exposure", &exposure, 0, 100); });
+      if (m.Button("Take Picture")) TakePicture();
+      m.Image(preview_texture, 4.0f / 3.0f);
+    }});
+```
+
+As in ImGui, `build` runs every frame the menu is shown and each call returns what the player did
+with that row (chosen, changed). The rows: `Button`, `Toggle`, `Choice` (left/right step it, choosing
+it lists the options, with a search when there are many), `Number`, `Slider`, `TextField` (the
+Guide's keyboard), `Page` (a row opening a page of its own), and `Header`, `Text` and `Image`, which
+aren't picked. A label's text after `##` isn't shown, and only tells rows with the same words apart.
+
+Detached menus take a `MenuWindow`: `width`/`height` and an `anchor` (a corner, an edge or the
+centre) with an `x`/`y` offset, all in pixels at 1080p; `strip` puts the title down a blade-like
+strip on the left instead of across the top; `movable` lets its title drag it; and `hold_input`
+makes the pad and keys work it while it's open (holding the game's input, so `IsOpen()` is true),
+where otherwise only the mouse does and the game plays on.
+
+| Function | Use |
+|---|---|
+| `ShowMenu(id, show)` / `ToggleMenu(id)` | Opens or closes a detached menu's window; for a blade, opens the Guide on it. Any thread. |
+| `MenuShown(id)` | Its window is open, or the Guide is on its blade. Any thread. |
+
 ## What the Guide takes over
 
 Linked into your executable, the Guide replaces these imports with its own:
@@ -185,6 +225,7 @@ file per area, so changes to different parts land in different files:
 | `guide_account.cpp` | Sign-in, profile creation, gamerpics and photos |
 | `guide_preferences.cpp`, `guide_themes.cpp` | Preferences, the theme gallery and designer |
 | `guide_input.cpp` | Navigation and text entry |
+| `guide_menus.cpp` | Apps' menus (`AddMenu`): their rows, blades and windows |
 | `guide_draw.cpp`, `guide_draw_list.cpp`, `guide_popups.cpp` | Drawing |
 | `server_backend.cpp`, `mock_backend.cpp` | Talking to RexLiveless (or the offline mock) |
 | `xam_live.cpp`, `net.cpp`, `live_sessions.cpp`, `live_stats.cpp` | The XAM and network imports the title calls |

@@ -54,6 +54,9 @@ std::vector<Row> GuideDialog::BuildRows(Page& page) {
     case PageKind::kGamerpicGames: GamerpicGamesRows(rows, page); break;
     case PageKind::kGamerpicGame: break;  // drawn as a grid
     case PageKind::kGamerpics: break;  // drawn as a grid
+    case PageKind::kMenu:
+      MenuRows(rows, page, [this](Page p) { Push(std::move(p)); }, [this] { Pop(); }, false);
+      break;
   }
   return rows;
 }

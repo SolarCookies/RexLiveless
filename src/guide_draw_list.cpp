@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cfloat>
 #include <cmath>
 #include <cstdlib>
 #include <string>
@@ -16,22 +17,51 @@ namespace rexglue_guide {
 using namespace ui;
 using assets::Sound;
 
+namespace {
+
+// Small caps no wider than max_width, cut short with "..." if need be.
+std::string FitCaps(std::string text, float max_width) {
+  if (CapsWidth(Semibold(), Px(14), text, Px(1.2f)) <= max_width) return text;
+  while (text.size() > 1 && CapsWidth(Semibold(), Px(14), text + "...", Px(1.2f)) > max_width) {
+    text.pop_back();
+    while (!text.empty() && (static_cast<unsigned char>(text.back()) & 0xC0) == 0x80) text.pop_back();  // whole UTF-8 characters
+  }
+  return text + "...";
+}
+
+}  // namespace
+
 void GuideDialog::DrawList(ImDrawList* dl, ImVec2 l0, ImVec2 l1, float a) {
-  Page& page = Current();
-  row_hits_.clear();
-  slider_hits_.clear();
+  DrawList(dl, list_, Stack(), l0, l1, a, slide_);
+}
+
+float GuideDialog::RowHeight(const Row& row, float width) const {
+  if (row.header) return Px(44);
+  if (!row.text.empty()) return Regular()->CalcTextSizeA(Px(22), FLT_MAX, width - Px(36), row.text.c_str()).y + Px(14);
+  if (row.picture_aspect > 0.0f) {
+    const float h = (width - Px(36)) / row.picture_aspect;
+    return (row.picture_height > 0.0f ? std::min(h, Px(row.picture_height)) : h) + Px(12);
+  }
+  return row.sub.empty() ? Px(56) : Px(72);
+}
+
+void GuideDialog::DrawList(ImDrawList* dl, ListView& v, std::vector<Page>& stack, ImVec2 l0, ImVec2 l1, float a,
+                           float slide) {
+  Page& page = stack.back();
+  v.row_hits.clear();
+  v.slider_hits.clear();
   grid_cells_.clear();
-  scroll_bar_ = {};  // (a grid or gallery page has none)
+  v.scroll_bar = {};  // (a grid or gallery page has none)
   // Pictures download only once the page stops moving (a list scrolled
   // through would want each row's on the way); until then, what's here.
   if (ImGui::GetIO().MouseWheel != 0.0f) last_wheel_ = time_;
   allow_downloads_ = true;
-  const float slide_x = slide_ * Px(60);
-  const float ca = a * (1.0f - std::min(1.0f, std::abs(slide_)) * 0.9f);
+  const float slide_x = slide * Px(60);
+  const float ca = a * (1.0f - std::min(1.0f, std::abs(slide)) * 0.9f);
   dl->PushClipRect(l0, l1, true);
 
   float y = l0.y;
-  if (Stack().size() > 1) {
+  if (stack.size() > 1) {
     Text(dl, Light(), Px(30), ImVec2(l0.x + Px(14) + slide_x, y), WithAlpha(color::kText, ca), page.title);
     y += Px(46);
   }
@@ -76,8 +106,8 @@ void GuideDialog::DrawList(ImDrawList* dl, ImVec2 l0, ImVec2 l1, float a) {
   // Row heights, then scroll so the selection stays in view.
   std::vector<float> heights;
   float total = 0.0f;
-  for (const Row& r : rows_) {
-    heights.push_back(r.sub.empty() ? Px(56) : Px(72));
+  for (const Row& r : v.rows) {
+    heights.push_back(RowHeight(r, l1.x - l0.x));
     total += heights.back();
   }
   const float view = l1.y - y;
@@ -88,14 +118,14 @@ void GuideDialog::DrawList(ImDrawList* dl, ImVec2 l0, ImVec2 l1, float a) {
   if (sel_top < follow) follow = sel_top;
   if (sel_top + sel_h > follow + view) follow = sel_top + sel_h - view;
   const float target = ScrollTowards(page, follow, total - view);
-  allow_downloads_ = !dragging_scroll_ && time_ - last_wheel_ > 0.25f && std::abs(target - page.scroll) < Px(4);
+  allow_downloads_ = !v.dragging_scroll && time_ - last_wheel_ > 0.25f && std::abs(target - page.scroll) < Px(4);
   if (page.free_scroll && !heights.empty() && (sel_top < target - 1.0f || sel_top + sel_h > target + view + 1.0f)) {
     // Scrolled off by the mouse: the selection moves to the nearest row on
     // screen, so pad and keys go on from what's shown.
     float top = 0.0f;
     int first = -1, last = -1;
     for (int i = 0; i < int(heights.size()); ++i) {
-      if (top >= target - 1.0f && top + heights[i] <= target + view + 1.0f) {
+      if (v.rows[size_t(i)].Selectable() && top >= target - 1.0f && top + heights[i] <= target + view + 1.0f) {
         if (first < 0) first = i;
         last = i;
       }
@@ -107,16 +137,16 @@ void GuideDialog::DrawList(ImDrawList* dl, ImVec2 l0, ImVec2 l1, float a) {
   // Rows scroll under the page's title and header, not over them.
   dl->PushClipRect(ImVec2(l0.x, y), l1, true);
   float ry = y - page.scroll;
-  for (size_t i = 0; i < rows_.size(); ++i) {
-    const Row& row = rows_[i];
+  for (size_t i = 0; i < v.rows.size(); ++i) {
+    const Row& row = v.rows[i];
     const ImVec2 r0(l0.x + slide_x, ry), r1(l1.x + slide_x, ry + heights[i] - Px(2));
-    row_hits_.push_back({ImVec2(r0.x, std::max(r0.y, y)), ImVec2(r1.x, std::min(r1.y, l1.y))});
+    v.row_hits.push_back({ImVec2(r0.x, std::max(r0.y, y)), ImVec2(r1.x, std::min(r1.y, l1.y))});
     std::pair<ImVec2, ImVec2> slider{};
     DrawRow(dl, row, r0, r1, int(i) == page.selected, ca, &slider);
-    slider_hits_.push_back(slider);
+    v.slider_hits.push_back(slider);
     ry += heights[i];
   }
-  scroll_bar_ = {};
+  v.scroll_bar = {};
   if (total > view) {
     // Scroll bar: its knob is dragged with the mouse (HandleInput), the track
     // clicked to jump.
@@ -124,19 +154,19 @@ void GuideDialog::DrawList(ImDrawList* dl, ImVec2 l0, ImVec2 l1, float a) {
     const float bar_h = std::max(Px(40), view * view / total);
     const float bar_y = y + (view - bar_h) * std::clamp(page.scroll / (total - view), 0.0f, 1.0f);
     const ImVec2 t0(l1.x - bar_w, y), t1(l1.x, l1.y);
-    scroll_bar_ = {.hit0 = ImVec2(t0.x - Px(14), t0.y), .hit1 = ImVec2(t1.x + Px(6), t1.y), .top = y,
+    v.scroll_bar = {.hit0 = ImVec2(t0.x - Px(14), t0.y), .hit1 = ImVec2(t1.x + Px(6), t1.y), .top = y,
                    .bottom = l1.y, .knob_y = bar_y, .knob_h = bar_h, .max = total - view, .shown = true};
-    const bool hot = dragging_scroll_ || ImGui::IsMouseHoveringRect(scroll_bar_.hit0, scroll_bar_.hit1, false);
+    const bool hot = v.dragging_scroll || ImGui::IsMouseHoveringRect(v.scroll_bar.hit0, v.scroll_bar.hit1, false);
     dl->AddRectFilled(t0, t1, WithAlpha(IM_COL32(0, 0, 0, 40), ca), bar_w * 0.5f);
     dl->AddRectFilled(ImVec2(t0.x, bar_y), ImVec2(t1.x, bar_y + bar_h),
                       WithAlpha(hot ? color::kGreenLight : color::kTextDim, ca * (hot ? 1.0f : 0.7f)), bar_w * 0.5f);
-    if (dragging_scroll_ && page.kind == PageKind::kGamerpicGames) {
+    if (v.dragging_scroll && page.kind == PageKind::kGamerpicGames) {
       // Where in the alphabet: the first game in view's initial.
       float top = 0.0f;
       std::string letter;
-      for (size_t i = 0; i < rows_.size(); ++i, top += heights[i - 1]) {
-        if (top + heights[i] * 0.5f < page.scroll || i == 0 || !rows_[i].sub.empty() /* pinned: playing now, the dashboard */ || rows_[i].label.empty()) continue;
-        const unsigned char c = static_cast<unsigned char>(rows_[i].label[0]);
+      for (size_t i = 0; i < v.rows.size(); ++i, top += heights[i - 1]) {
+        if (top + heights[i] * 0.5f < page.scroll || i == 0 || !v.rows[i].sub.empty() /* pinned: playing now, the dashboard */ || v.rows[i].label.empty()) continue;
+        const unsigned char c = static_cast<unsigned char>(v.rows[i].label[0]);
         letter = std::isalpha(c) ? std::string(1, char(std::toupper(c))) : "#";
         break;
       }
@@ -158,6 +188,25 @@ void GuideDialog::DrawList(ImDrawList* dl, ImVec2 l0, ImVec2 l1, float a) {
 
 void GuideDialog::DrawRow(ImDrawList* dl, const Row& row, ImVec2 r0, ImVec2 r1, bool selected, float a,
                           std::pair<ImVec2, ImVec2>* slider) {
+  // Rows that aren't picked.
+  if (row.header) {
+    Caps(dl, Semibold(), Px(14), ImVec2(r0.x + Px(18), r1.y - Px(24)), WithAlpha(color::kTextDim, a), row.label, Px(1.2f));
+    return;
+  }
+  if (!row.text.empty()) {
+    dl->AddText(Regular(), Px(22), ImVec2(r0.x + Px(18), r0.y + Px(6)), WithAlpha(row.text_color.value_or(color::kTextDim), a),
+                row.text.c_str(), nullptr, r1.x - r0.x - Px(36));
+    return;
+  }
+  if (row.picture_aspect > 0.0f) {
+    // As big as fits, keeping its shape, in the middle.
+    const float w = r1.x - r0.x - Px(36), h = r1.y - r0.y - Px(10);
+    const float pw = std::min(w, h * row.picture_aspect), ph = pw / row.picture_aspect;
+    const ImVec2 i0(std::floor(r0.x + Px(18) + (w - pw) * 0.5f), r0.y + Px(4)), i1(i0.x + pw, i0.y + ph);
+    if (row.picture) Image(dl, row.picture, i0, i1, WithAlpha(color::kWhite, a), Px(6));
+    else dl->AddRectFilled(i0, i1, WithAlpha(IM_COL32(0, 0, 0, 90), a), Px(6));
+    return;
+  }
   if (selected) {
     dl->AddRectFilled(r0, r1, WithAlpha(color::kGreen, a), Px(6));
     dl->AddRectFilledMultiColor(r0, ImVec2(r1.x, (r0.y + r1.y) * 0.5f), WithAlpha(IM_COL32(255, 255, 255, 26), a),
@@ -210,6 +259,17 @@ void GuideDialog::DrawRow(ImDrawList* dl, const Row& row, ImVec2 r0, ImVec2 r1, 
     if (slider) *slider = {ImVec2(b0.x - Px(12), r0.y), ImVec2(b1.x + Px(12), r1.y)};
     right -= w + Px(28);
   }
+  if (row.toggle) {
+    // A switch: the knob to the right and the track filled when it's on.
+    const bool on = *row.toggle;
+    const float tw = Px(56), th = Px(30);
+    const ImVec2 t0(right - tw, cy - th * 0.5f), t1(right, cy + th * 0.5f);
+    const ImU32 track = selected ? color::kWhite : on ? color::kGreen : color::kTextDim;
+    dl->AddRectFilled(t0, t1, WithAlpha(track, a * (on ? 1.0f : 0.35f)), th * 0.5f);
+    const ImVec2 knob(on ? t1.x - th * 0.5f : t0.x + th * 0.5f, cy);
+    dl->AddCircleFilled(knob, th * 0.5f - Px(4), WithAlpha(on && selected ? color::kGreen : color::kWhite, a), 20);
+    right -= tw + Px(18);
+  }
   if (row.glyph) {
     DrawGlyph(dl, *row.glyph, ImVec2(right - Px(16), cy), Px(32), text);
     right -= Px(44);
@@ -219,9 +279,20 @@ void GuideDialog::DrawRow(ImDrawList* dl, const Row& row, ImVec2 r0, ImVec2 r1, 
     right -= Px(20);
   }
   if (!row.detail.empty()) {
-    const float dw = CapsWidth(Semibold(), Px(14), row.detail, Px(1.2f));
-    Caps(dl, Semibold(), Px(14), ImVec2(right - dw, cy - Px(8)), dim, row.detail, Px(1.2f));
-    right -= dw + Px(18);
+    // (At most half the row, so the label shows.)
+    const float arrow = Px(6);
+    const std::string detail = FitCaps(row.detail, (r1.x - r0.x) * 0.5f);
+    const float dw = CapsWidth(Semibold(), Px(14), detail, Px(1.2f));
+    if (row.step) {
+      // Arrows either side: left and right change it.
+      const ImU32 col = WithAlpha(selected ? color::kWhite : color::kTextDim, a);
+      dl->AddTriangleFilled(ImVec2(right - arrow, cy - arrow), ImVec2(right - arrow, cy + arrow), ImVec2(right, cy), col);
+      right -= arrow + Px(10);
+      const float lx = right - dw - Px(10);
+      dl->AddTriangleFilled(ImVec2(lx, cy - arrow), ImVec2(lx, cy + arrow), ImVec2(lx - arrow, cy), col);
+    }
+    Caps(dl, Semibold(), Px(14), ImVec2(right - dw, cy - Px(8)), dim, detail, Px(1.2f));
+    right -= dw + Px(18) + (row.step ? arrow + Px(10) : 0.0f);
   }
 
   const float max_w = right - x;

@@ -81,43 +81,9 @@ void GuideDialog::HandleInput(const NavInput& in, float dt) {
     return;
   }
 
-  const int count = int(rows_.size());
-  if (count > 0) {
-    int sel = std::clamp(page.selected, 0, count - 1);
-    if (in.up && sel > 0) --sel;
-    if (in.down && sel + 1 < count) ++sel;
-    if (in.up || in.down) page.free_scroll = false;
-    if (sel != page.selected) audio::Play(Sound::kMove);
-    page.selected = sel;
-  }
-  // A slider row takes left and right (the bumpers still switch blades), and
-  // the mouse drags it.
-  const ImGuiIO& io = ImGui::GetIO();
-  const Row* selected = page.selected >= 0 && page.selected < count ? &rows_[page.selected] : nullptr;
-  const bool slide = selected && selected->slider && selected->set_slider && (in.left || in.right);
-  if (slide) {
-    const float step = in.right ? selected->slider_step : -selected->slider_step;
-    selected->set_slider(std::clamp(*selected->slider + step, 0.0f, 1.0f));
-    audio::Play(Sound::kMove);
-  }
-  if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) dragging_slider_ = -1;
-  for (size_t i = 0; i < slider_hits_.size() && i < rows_.size(); ++i) {
-    const auto& [s0, s1] = slider_hits_[i];
-    if (s1.x <= s0.x || !rows_[i].set_slider) continue;
-    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && ImGui::IsMouseHoveringRect(s0, s1, false)) dragging_slider_ = int(i);
-  }
-  if (dragging_slider_ >= 0 && dragging_slider_ < count && slider_hits_.size() > size_t(dragging_slider_)) {
-    // The bar is inset from the hit area by its knob.
-    const auto& [s0, s1] = slider_hits_[dragging_slider_];
-    const float inset = Px(12);
-    page.selected = dragging_slider_;
-    rows_[dragging_slider_].set_slider(std::clamp((io.MousePos.x - s0.x - inset) / (s1.x - s0.x - 2 * inset), 0.0f, 1.0f));
-    return;
-  }
   if (screen_ == Screen::kGuide) {
-    int delta = 0;
-    if (in.lb || (in.left && !slide)) delta = -1;
-    if (in.rb || (in.right && !slide)) delta = 1;
+    // The bumpers, and the side blades clicked.
+    int delta = in.lb ? -1 : in.rb ? 1 : 0;
     for (const auto& [blade, rect] : blade_hits_) {
       if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
           ImGui::IsMouseHoveringRect(rect.first, rect.second, false)) {
@@ -133,25 +99,97 @@ void GuideDialog::HandleInput(const NavInput& in, float dt) {
       return;
     }
   }
-  // The scroll bar's knob: dragged, or the track clicked to bring it there.
-  if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) dragging_scroll_ = false;
-  if (scroll_bar_.shown && ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
-      ImGui::IsMouseHoveringRect(scroll_bar_.hit0, scroll_bar_.hit1, false)) {
-    dragging_scroll_ = true;
-    const float on_knob = io.MousePos.y - scroll_bar_.knob_y;
-    drag_grab_ = on_knob >= 0.0f && on_knob <= scroll_bar_.knob_h ? on_knob : scroll_bar_.knob_h * 0.5f;
+  const ListInput result = HandleList(in, list_, page, true);
+  // Left and right switch blades, unless the row took them.
+  if (result.sideways != 0 && screen_ == Screen::kGuide) SwitchBlade(result.sideways);
+  else if (result.back) Pop();
+}
+
+ListInput GuideDialog::HandleList(const NavInput& in, ListView& v, Page& page, bool mouse) {
+  const ImGuiIO& io = ImGui::GetIO();
+  const int count = int(v.rows.size());
+  auto selectable = [&](int i) { return i >= 0 && i < count && v.rows[size_t(i)].Selectable(); };
+  if (count > 0) {
+    int sel = std::clamp(page.selected, 0, count - 1);
+    // Off a row that can't be picked (the page changed under it): the nearest
+    // that can, below first.
+    for (int i = sel; !selectable(sel) && i < count; ++i) {
+      if (selectable(i)) sel = i;
+    }
+    for (int i = sel; !selectable(sel) && i >= 0; --i) {
+      if (selectable(i)) sel = i;
+    }
+    const int was = sel;
+    if (in.up) {
+      for (int i = sel - 1; i >= 0; --i) {
+        if (selectable(i)) {
+          sel = i;
+          break;
+        }
+      }
+    }
+    if (in.down) {
+      for (int i = sel + 1; i < count; ++i) {
+        if (selectable(i)) {
+          sel = i;
+          break;
+        }
+      }
+    }
+    if (in.up || in.down) page.free_scroll = false;
+    if (sel != was) audio::Play(Sound::kMove);
+    page.selected = sel;
   }
-  if (dragging_scroll_ && scroll_bar_.shown) {
+  // A slider or stepper row takes left and right (the bumpers still switch
+  // blades), and the mouse drags a slider.
+  const Row* selected = selectable(page.selected) ? &v.rows[size_t(page.selected)] : nullptr;
+  bool taken = false;
+  if (selected && (in.left || in.right)) {
+    if (selected->slider && selected->set_slider) {
+      const float step = in.right ? selected->slider_step : -selected->slider_step;
+      selected->set_slider(std::clamp(*selected->slider + step, 0.0f, 1.0f));
+      taken = true;
+    } else if (selected->step && !selected->disabled) {
+      selected->step(in.right ? 1 : -1);
+      taken = true;
+    }
+    if (taken) audio::Play(Sound::kMove);
+  }
+  if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) v.dragging_slider = -1;
+  for (size_t i = 0; mouse && i < v.slider_hits.size() && i < v.rows.size(); ++i) {
+    const auto& [s0, s1] = v.slider_hits[i];
+    if (s1.x <= s0.x || !v.rows[i].set_slider) continue;
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && ImGui::IsMouseHoveringRect(s0, s1, false)) v.dragging_slider = int(i);
+  }
+  if (v.dragging_slider >= 0 && v.dragging_slider < count && v.slider_hits.size() > size_t(v.dragging_slider)) {
+    // The bar is inset from the hit area by its knob.
+    const auto& [s0, s1] = v.slider_hits[size_t(v.dragging_slider)];
+    const float inset = Px(12);
+    page.selected = v.dragging_slider;
+    v.rows[size_t(v.dragging_slider)].set_slider(
+        std::clamp((io.MousePos.x - s0.x - inset) / (s1.x - s0.x - 2 * inset), 0.0f, 1.0f));
+    return {};
+  }
+  if (!taken && (in.left || in.right)) return {.sideways = in.right ? 1 : -1};
+  // The scroll bar's knob: dragged, or the track clicked to bring it there.
+  if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) v.dragging_scroll = false;
+  if (mouse && v.scroll_bar.shown && ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
+      ImGui::IsMouseHoveringRect(v.scroll_bar.hit0, v.scroll_bar.hit1, false)) {
+    v.dragging_scroll = true;
+    const float on_knob = io.MousePos.y - v.scroll_bar.knob_y;
+    v.drag_grab = on_knob >= 0.0f && on_knob <= v.scroll_bar.knob_h ? on_knob : v.scroll_bar.knob_h * 0.5f;
+  }
+  if (v.dragging_scroll && v.scroll_bar.shown) {
     HoldScroll(page);
-    const float travel = scroll_bar_.bottom - scroll_bar_.top - scroll_bar_.knob_h;
-    const float t = travel > 0.0f ? std::clamp((io.MousePos.y - drag_grab_ - scroll_bar_.top) / travel, 0.0f, 1.0f) : 0.0f;
+    const float travel = v.scroll_bar.bottom - v.scroll_bar.top - v.scroll_bar.knob_h;
+    const float t = travel > 0.0f ? std::clamp((io.MousePos.y - v.drag_grab - v.scroll_bar.top) / travel, 0.0f, 1.0f) : 0.0f;
     // Straight there, not eased: the list keeps up with the knob.
-    page.scroll_goal = page.scroll = t * scroll_bar_.max;
-    return;
+    page.scroll_goal = page.scroll = t * v.scroll_bar.max;
+    return {};
   }
   // Mouse over rows.
-  for (size_t i = 0; i < row_hits_.size() && i < rows_.size(); ++i) {
-    if (!ImGui::IsMouseHoveringRect(row_hits_[i].first, row_hits_[i].second, false)) continue;
+  for (size_t i = 0; mouse && i < v.row_hits.size() && i < v.rows.size(); ++i) {
+    if (!selectable(int(i)) || !ImGui::IsMouseHoveringRect(v.row_hits[i].first, v.row_hits[i].second, false)) continue;
     if (io.MouseDelta.x != 0 || io.MouseDelta.y != 0) {
       HoldScroll(page);
       page.selected = int(i);
@@ -159,19 +197,20 @@ void GuideDialog::HandleInput(const NavInput& in, float dt) {
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
       HoldScroll(page);
       page.selected = int(i);
-      Activate(rows_[i]);
-      return;
+      Activate(v.rows[i]);
+      return {};
     }
   }
-  if (io.MouseWheel != 0.0f && count > 0) {
+  if (mouse && io.MouseWheel != 0.0f && count > 0) {
     HoldScroll(page);
     page.scroll_goal -= io.MouseWheel * Px(112);  // two rows a notch
   }
-  if (in.accept && page.selected < count) {
-    Activate(rows_[page.selected]);
-  } else if (in.back || ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-    Pop();
+  if (in.accept && selectable(page.selected)) {
+    Activate(v.rows[size_t(page.selected)]);
+  } else if (in.back || (mouse && ImGui::IsMouseClicked(ImGuiMouseButton_Right))) {
+    return {.back = true};
   }
+  return {};
 }
 
 void GuideDialog::Activate(const Row& row) {

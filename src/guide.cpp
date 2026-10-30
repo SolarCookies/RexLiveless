@@ -74,6 +74,7 @@ GuideDialog::GuideDialog(rex::ReXApp* app, rex::ui::ImGuiDrawer* drawer, Config 
   if (config_.data_dir.empty()) config_.data_dir = rex::filesystem::GetExecutableFolder() / "guide";
   if (config_.title_name.empty()) config_.title_name = "This Game";
   LoadPreferences();
+  LayoutBlades();
   backend_ = &BackendFor(0);
   textures_.server_gamerpic = [this](int gamerpic) { return backend_->ServerGamerpic(gamerpic); };
   if (app_) input_.SetUiThread(&app_->app_context());
@@ -153,6 +154,7 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
   PumpPhotoPicks();
   PumpThemeImagePicks();
   FollowSelectedTheme();
+  PumpMenus();
   // A designer left some other way than Back (a page stack reset) has nothing
   // to show for.
   if (draft_ && !DesignerOpen()) draft_.reset();
@@ -166,6 +168,7 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
   // The app's keyboard is up for the Guide: it has the screen and the input.
   if (external_keyboard_open_) {
     toggle_requested_ = false;
+    window_holds_input_ = false;
     DrawServerWarning(ImGui::GetForegroundDrawList());
     DrawToasts(ImGui::GetForegroundDrawList(), dt);
     return;
@@ -176,6 +179,7 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
   PumpTitleKeyboards();
   if (keyboard_.active()) {
     toggle_requested_ = false;
+    window_holds_input_ = false;
     CaptureMouse();
     // Typing on the physical keyboard: the drawer only turns the window's text
     // input on (SDL's, without which typed characters never arrive, while keys
@@ -232,11 +236,14 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
     }
   }
   if (screen_ != Screen::kClosed) {
+    window_holds_input_ = false;
     CaptureMouse();
     if (!closing_) HandleInput(in, dt);
     Draw(ImGui::GetForegroundDrawList());
-  } else if (drain_ && !in.pad_held && !ImGui::IsAnyMouseDown()) {
-    drain_ = false;
+  } else {
+    if (drain_ && !in.pad_held && !ImGui::IsAnyMouseDown()) drain_ = false;
+    // Detached menus show over the game, under the toasts.
+    DrawMenuWindows(ImGui::GetForegroundDrawList(), drain_ ? NavInput{} : in, dt);
   }
   DrawServerWarning(ImGui::GetForegroundDrawList());
   DrawToasts(ImGui::GetForegroundDrawList(), dt);
@@ -303,10 +310,11 @@ void GuideDialog::OpenGuide() {
   open_t_ = 0.0f;
   if (draft_) {
     // Closed mid-design: back where they were.
-    blade_ = kSettingsBlade;
+    blade_ = BladeOf(kSettingsBlade);
   } else {
-    blade_ = kHomeBlade;
-    for (int b = 0; b < kBladeCount; ++b) stacks_[b] = {RootPage(b)};
+    LayoutBlades();  // with any menus added since
+    ResetStacks();
+    blade_ = BladeOf(kHomeBlade);
   }
   slide_ = 0.0f;
   audio::Play(Sound::kOpen);
@@ -326,13 +334,45 @@ void GuideDialog::Close() {
   audio::Play(Sound::kClose);
 }
 
-Page GuideDialog::RootPage(int blade) {
-  switch (blade) {
+void GuideDialog::LayoutBlades() {
+  std::vector<BladeSlot> left, right;
+  for (const auto& menu : AppMenus()) {
+    if (menu->place == MenuPlace::kLeftBlade) left.insert(left.begin(), {.menu = menu->id});
+    if (menu->place == MenuPlace::kRightBlade) right.push_back({.menu = menu->id});
+  }
+  blades_ = std::move(left);
+  for (int b = 0; b < kBladeCount; ++b) blades_.push_back({.builtin = b});
+  blades_.insert(blades_.end(), right.begin(), right.end());
+  stacks_.resize(blades_.size());
+  for (size_t b = 0; b < stacks_.size(); ++b) {
+    if (stacks_[b].empty()) stacks_[b] = {RootPage(int(b))};
+  }
+  blade_ = std::clamp(blade_, 0, int(blades_.size()) - 1);
+}
+
+int GuideDialog::BladeOf(int builtin) const {
+  for (size_t b = 0; b < blades_.size(); ++b) {
+    if (blades_[b].builtin == builtin) return int(b);
+  }
+  return 0;
+}
+
+Page GuideDialog::RootPage(int blade) const {
+  const BladeSlot& slot = blades_[size_t(blade)];
+  if (!slot.menu.empty()) {
+    const auto menu = FindAppMenu(slot.menu);
+    return {PageKind::kMenu, menu ? menu->title : "", slot.menu};
+  }
+  switch (slot.builtin) {
     case kSocialBlade: return {PageKind::kSocial, "Social"};
     case kGamesBlade: return {PageKind::kGames, "Games & Apps"};
     case kSettingsBlade: return {PageKind::kSettings, "Settings"};
     default: return {PageKind::kHome, ""};
   }
+}
+
+void GuideDialog::ResetStacks() {
+  for (size_t b = 0; b < stacks_.size(); ++b) stacks_[b] = {RootPage(int(b))};
 }
 
 void GuideDialog::Push(Page page) {
@@ -356,11 +396,11 @@ void GuideDialog::Pop() {
 }
 
 void GuideDialog::SwitchBlade(int delta) {
-  const int next = std::clamp(blade_ + delta, 0, int(kBladeCount) - 1);
+  const int next = std::clamp(blade_ + delta, 0, int(blades_.size()) - 1);
   if (next == blade_) return;
   blade_ = next;
   // The settings blade keeps a theme being designed.
-  if (!(draft_ && blade_ == kSettingsBlade)) stacks_[blade_] = {RootPage(blade_)};
+  if (!(draft_ && blade_ == BladeOf(kSettingsBlade))) stacks_[size_t(blade_)] = {RootPage(blade_)};
   slide_ = float(delta);
   audio::Play(delta < 0 ? Sound::kPageLeft : Sound::kPageRight);
 }

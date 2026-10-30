@@ -147,8 +147,8 @@ void GuideDialog::ShowTitleGamercard(uint64_t xuid) {
     return;
   }
   OpenGuide();
-  blade_ = kSocialBlade;
-  stacks_[kSocialBlade] = {card};
+  blade_ = BladeOf(kSocialBlade);
+  stacks_[size_t(blade_)] = {card};
   if (!std::exchange(title_ui_, true)) {
     if (auto* kernel = REX_KERNEL_STATE()) kernel->BroadcastNotification(kNotifySystemUi, 1);
   }

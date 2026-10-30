@@ -204,8 +204,8 @@ void GuideDialog::ConfirmSignOut() {
   ShowMessage({"Sign Out", "Sign out of " + backend_->me().gamertag + "?", {"Sign Out", "Cancel"}, 0, [this](int i) {
                  if (i != 0) return;
                  backend_->SignOut();
-                 for (int b = 0; b < kBladeCount; ++b) stacks_[b] = {RootPage(b)};
-                 blade_ = kHomeBlade;
+                 ResetStacks();
+                 blade_ = BladeOf(kHomeBlade);
                }});
 }
 

@@ -38,6 +38,10 @@ class ImGuiDrawer;
 
 namespace rexglue_guide {
 
+// App menus (AddMenu), in the order added. Any thread.
+std::vector<std::shared_ptr<const MenuDef>> AppMenus();
+std::shared_ptr<const MenuDef> FindAppMenu(std::string_view id);
+
 class GuideDialog final : public rex::ui::ImGuiDialog {
  public:
   GuideDialog(rex::ReXApp* app, rex::ui::ImGuiDrawer* drawer, Config config);
@@ -45,7 +49,9 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   void OnDraw(ImGuiIO& io) override;
   // The Guide, its sign-in screen or the on-screen keyboard is up (or the
   // buttons that closed it are still held).
-  bool input_held() const { return screen_ != Screen::kClosed || drain_ || keyboard_.active(); }
+  bool input_held() const {
+    return screen_ != Screen::kClosed || drain_ || keyboard_.active() || window_holds_input_;
+  }
 
  private:
   // guide.cpp -----------------------------------------------------------------
@@ -64,7 +70,12 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   void OpenGuide();
   void OpenSignIn();
   void Close();
-  static Page RootPage(int blade);
+  // The blades, left to right: the app's left ones, the Guide's four, then
+  // the app's right ones (the first added on each side next to the Guide's).
+  void LayoutBlades();
+  int BladeOf(int builtin) const;  // a Blade's place among them
+  Page RootPage(int blade) const;
+  void ResetStacks();  // every blade back to its first page
   void Push(Page page);
   void Pop();
   void SwitchBlade(int delta);
@@ -173,6 +184,9 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
 
   // guide_input.cpp -----------------------------------------------------------
   void HandleInput(const NavInput& in, float dt);
+  // A list's selection, sliders, steppers, scroll bar and mouse; `mouse`: the
+  // mouse is the list's (over it, for a window).
+  ListInput HandleList(const NavInput& in, ListView& view, Page& page, bool mouse);
   void Activate(const Row& row);
   // Text entry through the app's keyboard (Config::show_keyboard) when it has
   // one, else the Guide's. The app's answer can come from any thread, so it is
@@ -239,6 +253,7 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   // The blade stack: side blades fold out to the left and right of the open one.
   void DrawGuide(ImDrawList* dl, float a);
   std::string HomeLabel() const;
+  std::string BladeLabel(int blade) const;
   void DrawBladeIcon(ImDrawList* dl, int blade, ImVec2 c, float a);
   // The ring at any size, with a player's quarter lit (-1: none).
   void DrawRing(ImDrawList* dl, ImVec2 c, float a, int lit_player, float radius, float width);
@@ -250,9 +265,27 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   // Sign-in: one blade on its own, like the 360's profile picker.
   void DrawSignIn(ImDrawList* dl, float a);
 
+  // guide_menus.cpp -----------------------------------------------------------
+  // The rows of an app menu's page (PageKind::kMenu), from its build function.
+  // push and pop go to the stack it's on (the blade's, or its window's).
+  void MenuRows(std::vector<Row>& rows, Page& page, std::function<void(Page)> push, std::function<void()> pop,
+                bool detached);
+  // Requests from ShowMenu, and which menus are shown, for MenuShown.
+  void PumpMenus();
+  // Detached menus' windows, over the game while the Guide is closed. The
+  // topmost holding input gets `in`; the mouse goes to the one under it.
+  void DrawMenuWindows(ImDrawList* dl, const NavInput& in, float dt);
+  // A menu's icon, or 0 (the title's first letter stands in).
+  ImTextureID MenuIcon(const std::string& id);
+  // The menu's mark in a strip, centred on c.
+  void DrawMenuMark(ImDrawList* dl, const std::string& id, ImVec2 c, float a);
+
   // guide_draw_list.cpp -------------------------------------------------------
   // Rows of the current page inside [l0, l1].
   void DrawList(ImDrawList* dl, ImVec2 l0, ImVec2 l1, float a);
+  // Rows of `stack`'s top page into `view`; slide: its page sliding in (-1..1).
+  void DrawList(ImDrawList* dl, ListView& view, std::vector<Page>& stack, ImVec2 l0, ImVec2 l1, float a, float slide);
+  float RowHeight(const Row& row, float width) const;
   // *slider gets a slider row's bar.
   void DrawRow(ImDrawList* dl, const Row& row, ImVec2 r0, ImVec2 r1, bool selected, float a,
                std::pair<ImVec2, ImVec2>* slider);
@@ -271,7 +304,7 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   void OnNotification(const Notification& n);
 
   // inline -------------------------------------------------------------------
-  std::vector<Page>& Stack() { return screen_ == Screen::kSignIn ? signin_stack_ : stacks_[blade_]; }
+  std::vector<Page>& Stack() { return screen_ == Screen::kSignIn ? signin_stack_ : stacks_[size_t(blade_)]; }
   Page& Current() { return Stack().back(); }
   void Busy(std::string text) { busy_ = std::move(text); }
   // With the blurred game behind it, the open blade lets it show through, as on
@@ -363,24 +396,34 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   ImVec2 display_{};
   std::atomic<bool> toggle_requested_{false};
 
-  int blade_ = kHomeBlade;
-  std::vector<Page> stacks_[kBladeCount];
+  // The blades (LayoutBlades): one of the Guide's (a Blade), or an app menu's.
+  struct BladeSlot {
+    int builtin = -1;
+    std::string menu;
+  };
+  std::vector<BladeSlot> blades_;
+  int blade_ = 0;
+  std::vector<std::vector<Page>> stacks_;  // per blade
   std::vector<Page> signin_stack_;
-  std::vector<Row> rows_;
-  std::vector<std::pair<ImVec2, ImVec2>> row_hits_;
-  std::vector<std::pair<ImVec2, ImVec2>> slider_hits_;  // per row; empty unless a slider
-  int dragging_slider_ = -1;
-  // A row page's scroll bar as last drawn, and its knob being dragged
-  // (dragging_scroll_, held drag_grab_ below the knob's top).
-  struct ScrollBar {
-    ImVec2 hit0, hit1;  // the mouse's area for it
-    float top = 0.0f, bottom = 0.0f;
-    float knob_y = 0.0f, knob_h = 0.0f;
-    float max = 0.0f;  // the page's scroll at the bottom
-    bool shown = false;
-  } scroll_bar_;
-  bool dragging_scroll_ = false;
-  float drag_grab_ = 0.0f;
+  ListView list_;  // the open page's rows
+  // App menus: what their rows did, for their build functions to hear next
+  // ("<page arg>\x1d<row id>"), and their choice lists' searches (by page arg).
+  std::map<std::string, MenuEvent> menu_events_;
+  std::map<std::string, std::string> menu_search_;
+  // A detached menu's open window.
+  struct MenuWindowState {
+    std::string id;
+    std::vector<Page> stack;
+    ListView list;
+    float open_t = 0.0f;
+    bool closing = false;
+    float slide = 0.0f;
+    ImVec2 moved{};  // dragged by its title, from where it was placed
+    bool dragging = false;
+    ImVec2 p0{}, p1{};  // as last drawn
+  };
+  std::vector<MenuWindowState> windows_;  // the last on top
+  std::atomic<bool> window_holds_input_{false};
   // Pictures that aren't here yet are downloaded only while the page being
   // drawn is still (DrawPage); last_wheel_: time_ of the last wheel notch.
   bool allow_downloads_ = true;
@@ -389,7 +432,7 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   float settings_changed_at_ = 0.0f;
   std::vector<std::pair<ImVec2, ImVec2>> grid_cells_;
   std::vector<std::pair<ImVec2, ImVec2>> message_buttons_;
-  std::vector<std::pair<int, std::pair<ImVec2, ImVec2>>> blade_hits_;
+  std::vector<std::pair<int, std::pair<ImVec2, ImVec2>>> blade_hits_;  // by place in blades_
   std::optional<Prompt> message_;
   std::optional<std::string> busy_;
   std::deque<Toast> toasts_;
