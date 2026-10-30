@@ -160,6 +160,7 @@ void GuideDialog::DrawGuide(ImDrawList* dl, float a) {
 
   DrawHeader(dl, p0, p1, a);
   DrawLegend(dl, ImVec2(p0.x + Px(20), p1.y + Px(34)), a);
+  DrawDisclaimer(dl, p0, p1, a);
 }
 
 std::string GuideDialog::HomeLabel() const {
@@ -286,6 +287,30 @@ void GuideDialog::DrawSignIn(ImDrawList* dl, float a) {
     DrawList(dl, l0, l1, a);
   }
   DrawLegend(dl, ImVec2(p0.x + Px(20), p1.y + Px(34)), a);
+  DrawDisclaimer(dl, p0, p1, a);
+}
+
+void GuideDialog::DrawDisclaimer(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float a) {
+  // Under the legend, centred on the blade.
+  static constexpr const char* kText = "RexLiveless is not affiliated with Microsoft or its affiliates, All assets/layouts/sounds are recreations and not rips of original content.";
+  const ImVec2 s = Measure(Regular(), Px(15), kText);
+  Text(dl, Regular(), Px(15), ImVec2(std::floor((p0.x + p1.x - s.x) * 0.5f), p1.y + Px(62)), WithAlpha(color::kTextDim, a),
+       kText);
+}
+
+void GuideDialog::DrawServerWarning(ImDrawList* dl) {
+  // A debug build pointed at another server (REXLIVELESS_SERVER, the mock):
+  // shown over the game as well as the Guide, so it can't be mistaken for
+  // the real one.
+  const std::string server = backend_->unofficial_server();
+  if (server.empty()) return;
+  const std::string text = "DEBUG: not the RexLiveless server (" + server + ")";
+  const ImVec2 s = Measure(Semibold(), Px(16), text);
+  const ImVec2 b0(std::floor((display_.x - s.x) * 0.5f) - Px(14), Px(10));
+  const ImVec2 b1(b0.x + s.x + Px(28), b0.y + s.y + Px(10));
+  dl->AddRectFilled(b0, b1, IM_COL32(200, 120, 0, 220), Px(6));
+  dl->AddRect(b0, b1, IM_COL32(255, 210, 120, 255), Px(6), 0, Px(1.5f));
+  Text(dl, Semibold(), Px(16), ImVec2(b0.x + Px(14), b0.y + Px(5)), color::kWhite, text);
 }
 
 }  // namespace rexglue_guide

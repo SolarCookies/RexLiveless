@@ -268,6 +268,9 @@ class Backend {
 
   virtual bool connected() const = 0;
   virtual std::string server_name() const = 0;
+  // Empty when talking to the RexLiveless server; otherwise the server it is
+  // talking to instead (a local one, say), which the Guide warns about.
+  virtual std::string unofficial_server() const = 0;
   virtual LiveSnapshot Snapshot() const = 0;
 
   // Raised from Update() for anything that should pop a toast.

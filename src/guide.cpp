@@ -166,6 +166,7 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
   // The app's keyboard is up for the Guide: it has the screen and the input.
   if (external_keyboard_open_) {
     toggle_requested_ = false;
+    DrawServerWarning(ImGui::GetForegroundDrawList());
     DrawToasts(ImGui::GetForegroundDrawList(), dt);
     return;
   }
@@ -195,6 +196,7 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
     keyboard_.Draw(fg, textures_, display_, screen_ != Screen::kClosed,
                    [this](ImDrawList* dl, ImVec2 p0, ImVec2 p1) { DrawThemeBackground(dl, p0, p1, 0.0f, 1.0f); });
     if (!keyboard_.active()) drain_ = true;  // until the closing press is let go
+    DrawServerWarning(ImGui::GetForegroundDrawList());
     DrawToasts(ImGui::GetForegroundDrawList(), dt);
     textures_.EndFrame();
     return;
@@ -236,6 +238,7 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
   } else if (drain_ && !in.pad_held && !ImGui::IsAnyMouseDown()) {
     drain_ = false;
   }
+  DrawServerWarning(ImGui::GetForegroundDrawList());
   DrawToasts(ImGui::GetForegroundDrawList(), dt);
   textures_.EndFrame();
 }

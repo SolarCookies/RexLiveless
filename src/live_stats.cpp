@@ -136,6 +136,7 @@ const std::vector<Field>* ViewColumns(uint32_t view_id) {
 const char* Aggregation(const Field& f) {
   switch (f.aggregation) {
     case 0x8001: return "last";
+    case 0x8009: return "min";  // lower is better: Lollipop Chainsaw's clear times
     case 0x800B: return "max";
   }
   static std::once_flag logged;
@@ -261,7 +262,6 @@ uint32_t WriteStats(const uint8_t* buf) {
   std::thread([body = std::move(body)] {
     const auto r = Api("/api/leaderboards/write", body);
     if (r.status == 200) return;
-    REXKRNL_WARN("RexLiveless: couldn't write stats ({} {})", r.status, r.error);
     // Refused (an old build, too many posts): the title was already told it
     // worked, so the player hears why from the Guide.
     std::string why;
@@ -269,6 +269,8 @@ uint32_t WriteStats(const uint8_t* buf) {
       if (r.status) why = json::parse(r.body).value("error", "");
     } catch (...) {
     }
+    // r.error is only set when there was no response; a refusal's reason is in the body.
+    REXKRNL_WARN("RexLiveless: couldn't write stats ({} {})", r.status, r.status ? why : r.error);
     if (!why.empty()) {
       live::Post([why](Backend& b) {
         if (b.on_notification) b.on_notification({.text = why});
