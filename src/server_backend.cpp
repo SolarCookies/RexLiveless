@@ -7,7 +7,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
 #include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <fstream>
 #include <map>
@@ -978,7 +980,10 @@ class ServerBackend final : public Backend {
 
   void LoadAccount() {
     std::ifstream file(account_path_);
-    if (!file) return;
+    if (!file) {
+      REXKRNL_INFO("RexLiveless: no saved account at {}", account_path_.string());
+      return;
+    }
     try {
       const json j = json::parse(file);
       // A token only means something to the server that issued it.
@@ -987,12 +992,24 @@ class ServerBackend final : public Backend {
       remembered_.xuid = ParseXuid(j.value("xuid", json()));
       remembered_.gamerpic = j.value("gamerpic", 0);
     } catch (...) {
+      REXKRNL_WARN("RexLiveless: {} is not valid JSON", account_path_.string());
+      return;
     }
+    REXKRNL_INFO("RexLiveless: saved account {} at {} ({})", remembered_.gamertag, account_path_.string(),
+                 token_.empty() ? "signed out" : "signed in");
   }
 
+  // Written whole to account.json.tmp, then moved over account.json, so a
+  // failed or cut-short write never leaves half a file. A failure is logged:
+  // without the file the player has to sign in again next time.
   void SaveAccount() {
     std::error_code ec;
     std::filesystem::create_directories(account_path_.parent_path(), ec);
+    if (ec) {
+      REXKRNL_WARN("RexLiveless: can't create {} to save the account: {}", account_path_.parent_path().string(),
+                   ec.message());
+      return;
+    }
     char xuid[17];
     std::snprintf(xuid, sizeof(xuid), "%016llX", static_cast<unsigned long long>(remembered_.xuid));
     const json j = {{"server", server_url_},
@@ -1000,7 +1017,29 @@ class ServerBackend final : public Backend {
                     {"gamertag", remembered_.gamertag},
                     {"xuid", xuid},
                     {"gamerpic", remembered_.gamerpic}};
-    std::ofstream(account_path_, std::ios::trunc) << j.dump(2);
+    std::filesystem::path temp = account_path_;
+    temp += ".tmp";
+    {
+      std::ofstream file(temp, std::ios::trunc);
+      if (!file) {
+        REXKRNL_WARN("RexLiveless: can't write {}: {}", temp.string(), std::strerror(errno));
+        return;
+      }
+      file << j.dump(2);
+      file.close();
+      if (!file) {
+        REXKRNL_WARN("RexLiveless: couldn't finish writing {}", temp.string());
+        std::filesystem::remove(temp, ec);
+        return;
+      }
+    }
+    std::filesystem::rename(temp, account_path_, ec);
+    if (ec) {
+      REXKRNL_WARN("RexLiveless: can't save the account to {}: {}", account_path_.string(), ec.message());
+      std::filesystem::remove(temp, ec);
+      return;
+    }
+    REXKRNL_INFO("RexLiveless: saved the account to {}", account_path_.string());
   }
 
   void ForgetToken() {
