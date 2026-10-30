@@ -269,6 +269,7 @@ class MockBackend final : public Backend {
 
   bool connected() const override { return signed_in_; }
   std::string server_name() const override { return "Mock server (offline preview)"; }
+  std::string unofficial_server() const override { return "mock server"; }
 
  private:
   struct Pending {

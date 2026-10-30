@@ -245,6 +245,8 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   void DrawHeader(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float a);
   // Button hints under the blade. Keyboard and mouse users get key names.
   void DrawLegend(ImDrawList* dl, ImVec2 pos, float a);
+  void DrawDisclaimer(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float a);
+  void DrawServerWarning(ImDrawList* dl);
   // Sign-in: one blade on its own, like the 360's profile picker.
   void DrawSignIn(ImDrawList* dl, float a);
 

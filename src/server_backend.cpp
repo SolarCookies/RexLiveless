@@ -6,6 +6,7 @@
 // the remembered profile still signs in, offline, and keeps retrying.
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
@@ -31,6 +32,7 @@ constexpr double kSyncInterval = 3.0;
 constexpr int kSyncFailuresBeforeLost = 3;
 // Override with REXLIVELESS_SERVER=http(s)://host:port.
 constexpr const char* kDefaultServer = "https://rexliveless.xyz";
+constexpr const char* kDefaultHost = "rexliveless.xyz";
 
 uint64_t ParseXuid(const json& j) {
   if (!j.is_string()) return 0;
@@ -632,6 +634,13 @@ class ServerBackend final : public Backend {
 
   bool connected() const override { return connected_; }
   std::string server_name() const override { return "RexLiveless (" + endpoint_.host + ":" + std::to_string(endpoint_.port) + ")"; }
+  std::string unofficial_server() const override {
+    // By host, so REXLIVELESS_SERVER naming the real server another way
+    // (a trailing slash, its port) doesn't count.
+    std::string host = endpoint_.host;
+    std::transform(host.begin(), host.end(), host.begin(), [](unsigned char c) { return char(std::tolower(c)); });
+    return host == kDefaultHost ? "" : endpoint_.host + ":" + std::to_string(endpoint_.port);
+  }
 
   LiveSnapshot Snapshot() const override {
     std::lock_guard lock(snapshot_mutex_);
