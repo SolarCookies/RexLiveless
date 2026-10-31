@@ -50,6 +50,7 @@ void GuideDialog::DrawList(ImDrawList* dl, ListView& v, std::vector<Page>& stack
   Page& page = stack.back();
   v.row_hits.clear();
   v.slider_hits.clear();
+  v.inner_hits.clear();
   grid_cells_.clear();
   v.scroll_bar = {};  // (a grid or gallery page has none)
   // Pictures download only once the page stops moving (a list scrolled
@@ -103,14 +104,23 @@ void GuideDialog::DrawList(ImDrawList* dl, ListView& v, std::vector<Page>& stack
     return;
   }
 
-  // Row heights, then scroll so the selection stays in view.
-  std::vector<float> heights;
-  float total = 0.0f;
-  for (const Row& r : v.rows) {
-    heights.push_back(RowHeight(r, l1.x - l0.x));
-    total += heights.back();
-  }
+  // Row heights, then scroll so the selection stays in view. Lists rows share
+  // what the others leave of the view.
   const float view = l1.y - y;
+  std::vector<float> heights;
+  float fixed = 0.0f;
+  int fills = 0;
+  for (const Row& r : v.rows) {
+    heights.push_back(r.lists ? 0.0f : RowHeight(r, l1.x - l0.x));
+    fixed += heights.back();
+    fills += r.lists ? 1 : 0;
+  }
+  float total = fixed;
+  for (size_t i = 0; i < v.rows.size(); ++i) {
+    if (!v.rows[i].lists) continue;
+    heights[i] = std::max(Px(260), (view - fixed) / float(fills));
+    total += heights[i];
+  }
   float sel_top = 0.0f;
   for (int i = 0; i < page.selected && i < int(heights.size()); ++i) sel_top += heights[i];
   const float sel_h = page.selected < int(heights.size()) ? heights[page.selected] : 0.0f;
@@ -142,7 +152,8 @@ void GuideDialog::DrawList(ImDrawList* dl, ListView& v, std::vector<Page>& stack
     const ImVec2 r0(l0.x + slide_x, ry), r1(l1.x + slide_x, ry + heights[i] - Px(2));
     v.row_hits.push_back({ImVec2(r0.x, std::max(r0.y, y)), ImVec2(r1.x, std::min(r1.y, l1.y))});
     std::pair<ImVec2, ImVec2> slider{};
-    DrawRow(dl, row, r0, r1, int(i) == page.selected, ca, &slider);
+    if (row.Inner()) DrawInnerRow(dl, v, page, int(i), r0, r1, int(i) == page.selected, ca);
+    else DrawRow(dl, row, r0, r1, int(i) == page.selected, ca, &slider);
     v.slider_hits.push_back(slider);
     ry += heights[i];
   }

@@ -188,6 +188,23 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   // mouse is the list's (over it, for a window).
   ListInput HandleList(const NavInput& in, ListView& view, Page& page, bool mouse);
   void Activate(const Row& row);
+
+  // guide_menu_rows.cpp -------------------------------------------------------
+  struct LegendHint {
+    char button;  // the pad's
+    std::string key;  // the keyboard's
+    std::string label;
+  };
+  struct InnerMouse {
+    bool clicked = false;  // something in a row took the click
+    bool wheel = false;    // a list took the wheel
+  };
+  // The pad and keys in a Bar or Lists row: what they do there is cleared from `in`.
+  void InnerInput(NavInput& in, const Row& row, InnerState& state);
+  InnerMouse InnerMouseInput(ListView& view, Page& page);
+  // What X and Y do in the selected Lists row, for the legend.
+  std::vector<LegendHint> InnerHints(const ListView& view, Page& page);
+  void DrawInnerRow(ImDrawList* dl, ListView& view, Page& page, int index, ImVec2 r0, ImVec2 r1, bool selected, float a);
   // Text entry through the app's keyboard (Config::show_keyboard) when it has
   // one, else the Guide's. The app's answer can come from any thread, so it is
   // queued for the next frame.
@@ -260,6 +277,8 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   void DrawHeader(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float a);
   // Button hints under the blade. Keyboard and mouse users get key names.
   void DrawLegend(ImDrawList* dl, ImVec2 pos, float a);
+  // Hints in a line from pos; returns where the line ends.
+  float DrawHints(ImDrawList* dl, ImVec2 pos, const std::vector<LegendHint>& hints, float a);
   void DrawDisclaimer(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float a);
   void DrawServerWarning(ImDrawList* dl);
   // Sign-in: one blade on its own, like the 360's profile picker.

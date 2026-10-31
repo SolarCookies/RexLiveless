@@ -24,6 +24,7 @@ function(rexglue_guide_attach target)
     ${dir}/src/guide_games.cpp
     ${dir}/src/guide_input.cpp
     ${dir}/src/guide_menus.cpp
+    ${dir}/src/guide_menu_rows.cpp
     ${dir}/src/guide_messages.cpp
     ${dir}/src/guide_pages.cpp
     ${dir}/src/guide_popups.cpp
