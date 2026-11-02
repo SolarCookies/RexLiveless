@@ -405,6 +405,11 @@ extern "C" REX_FUNC(__imp__XMsgInProcessCall) {
       case 0x00058035:  // XStorageBuildServerPath(ByXuid)
         GUIDE_TRACE("XStorageBuildServerPath");
         return SetResult(ctx, rexglue_guide::storage::BuildServerPath(ctx.r5.u32));
+      case 0x0005800E:  // XUserMuteListQuery: (user, xuid) in arg1, BOOL* in arg2
+        // Nobody is on a mute list here. Voice titles ask this for each remote
+        // talker every frame (Kameo's voice tick does).
+        if (uint8_t* muted = Guest(ctx.r6.u32)) store_and_swap<uint32_t>(muted, 0);
+        return SetResult(ctx, 0);
       default:
         break;
     }
