@@ -7,6 +7,14 @@
 # library: the Guide defines XAM import functions, and only object files are
 # sure to win over the rexglue runtime DLL's versions at link time.
 
+# The Guide's panels are glass when the game attaches RexGlass too, before or after the Guide.
+function(_rexglue_guide_use_glass target)
+  get_property(glass TARGET ${target} PROPERTY REXGLASS_ATTACHED)
+  if(glass)
+    target_compile_definitions(${target} PRIVATE REXGLUE_GUIDE_WITH_GLASS=1)
+  endif()
+endfunction()
+
 function(rexglue_guide_attach target)
   set(dir ${CMAKE_CURRENT_FUNCTION_LIST_DIR})
   set(sources
@@ -22,6 +30,7 @@ function(rexglue_guide_attach target)
     ${dir}/src/guide_friends.cpp
     ${dir}/src/guide_game_gamerpics.cpp
     ${dir}/src/guide_games.cpp
+    ${dir}/src/guide_glass.cpp
     ${dir}/src/guide_input.cpp
     ${dir}/src/guide_menus.cpp
     ${dir}/src/guide_menu_rows.cpp
@@ -76,4 +85,6 @@ function(rexglue_guide_attach target)
   if(WIN32)
     target_link_libraries(${target} PRIVATE comdlg32 ole32)
   endif()
+  # Checked once every module is attached; a deferred call reads its arguments when it runs, so the name goes in now.
+  cmake_language(EVAL CODE "cmake_language(DEFER DIRECTORY [[${CMAKE_SOURCE_DIR}]] CALL _rexglue_guide_use_glass [[${target}]])")
 endfunction()

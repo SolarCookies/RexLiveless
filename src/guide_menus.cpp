@@ -729,11 +729,13 @@ void GuideDialog::DrawMenuWindows(ImDrawList* dl, const NavInput& in, float dt) 
     MenuWindowState& drawn = windows_[i];  // (still: the build function's requests wait for PumpMenus)
     if (drawn.stack.empty()) continue;
 
-    Shadow(dl, p0, p1, round, Px(24), a);
-    dl->AddRectFilled(p0, p1, WithAlpha(color::kBlade, a), round);
+    if (!GlassPanel(dl, p0, p1, round, color::kBlade, 0.5f, a)) {
+      Shadow(dl, p0, p1, round, Px(24), a);
+      dl->AddRectFilled(p0, p1, WithAlpha(color::kBlade, a), round);
+    }
     DrawThemeBackground(dl, p0, p1, round, a);
     if (strip) {
-      dl->AddRectFilled(s0, s1, WithAlpha(color::kBladeStrip, a), Px(8));
+      if (!GlassPanel(dl, s0, s1, Px(8), color::kBladeStrip, 0.45f, a, 0, false, false)) dl->AddRectFilled(s0, s1, WithAlpha(color::kBladeStrip, a), Px(8));
       const ImVec2 mark((s0.x + s1.x) * 0.5f, s0.y + Px(38));
       DrawMenuMark(dl, id, mark, a);
       TextVertical(dl, Regular(), Px(30), ImVec2(mark.x, (mark.y + Px(40) + s1.y) * 0.5f), WithAlpha(color::kText, a),

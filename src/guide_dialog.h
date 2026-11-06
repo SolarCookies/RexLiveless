@@ -268,6 +268,10 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   // from the blade's edge outwards, following its rounded corners, fading out
   // (and, like Shadow(), reaching less far above it than below).
   void BladeShadow(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float round, float spread, float a);
+  // A glass panel tinted 'tint' (its colour; 'tint_alpha' is how strongly the
+  // glass takes it), with its own shadow, when the game has RexGlass
+  // (guide_glass.cpp). False without it: the caller draws its flat panel.
+  bool GlassPanel(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float round, ImU32 tint, float tint_alpha, float a, ImDrawFlags corners = 0, bool shadow = true, bool see_game = true);
   // The blade stack: side blades fold out to the left and right of the open one.
   void DrawGuide(ImDrawList* dl, float a);
   std::string HomeLabel() const;
@@ -352,6 +356,9 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   Input input_;
   Keyboard keyboard_;
   bool blurred_ = false;  // this frame has the live game blurred behind the Guide
+  // The app's blurred game this frame, for glass panels to show through them.
+  ImTextureID glass_backdrop_ = ImTextureID_Invalid;
+  ImVec4 glass_backdrop_uv_{0.0f, 0.0f, 1.0f, 1.0f};
 
   Screen screen_ = Screen::kClosed;
   bool closing_ = false;

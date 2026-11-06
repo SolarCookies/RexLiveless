@@ -28,8 +28,11 @@ void GuideDialog::DrawMessage(ImDrawList* dl) {
   const ImVec2 body = Regular()->CalcTextSizeA(Px(22), FLT_MAX, wrap, box.body.c_str());
   const float h = Px(84) + body.y + Px(24) + Px(56) * float(box.buttons.size()) + Px(20);
   const ImVec2 p0(std::floor((display_.x - w) * 0.5f), std::floor((display_.y - h) * 0.5f)), p1(p0.x + w, p0.y + h);
-  Shadow(dl, p0, p1, Px(12), Px(32), 1.0f);
-  dl->AddRectFilled(p0, p1, color::kBlade, Px(12));
+  // A message sits over the Guide, so as glass it's more solid, and shows the Guide under it rather than the game.
+  if (!GlassPanel(dl, p0, p1, Px(12), color::kBlade, 0.72f, 1.0f, 0, true, false)) {
+    Shadow(dl, p0, p1, Px(12), Px(32), 1.0f);
+    dl->AddRectFilled(p0, p1, color::kBlade, Px(12));
+  }
   Text(dl, Semibold(), Px(30), ImVec2(p0.x + Px(32), p0.y + Px(24)), color::kText, box.title);
   dl->AddText(Regular(), Px(22), ImVec2(p0.x + Px(32), p0.y + Px(76)), color::kTextDim, box.body.c_str(), nullptr, wrap);
   message_buttons_.clear();
@@ -48,7 +51,7 @@ void GuideDialog::DrawBusy(ImDrawList* dl) {
   const ImVec2 ts = Measure(Regular(), Px(26), *busy_);
   const float w = std::max(Px(420), ts.x + Px(140)), h = Px(96);
   const ImVec2 p0(std::floor((display_.x - w) * 0.5f), std::floor((display_.y - h) * 0.5f)), p1(p0.x + w, p0.y + h);
-  dl->AddRectFilled(p0, p1, color::kBlade, Px(12));
+  if (!GlassPanel(dl, p0, p1, Px(12), color::kBlade, 0.72f, 1.0f, 0, true, false)) dl->AddRectFilled(p0, p1, color::kBlade, Px(12));
   Spinner(dl, ImVec2(p0.x + Px(52), (p0.y + p1.y) * 0.5f), Px(18), time_, color::kGreenLight);
   Text(dl, Regular(), Px(26), ImVec2(p0.x + Px(92), (p0.y + p1.y) * 0.5f - ts.y * 0.5f), color::kText, *busy_);
 }
@@ -70,9 +73,11 @@ void GuideDialog::DrawToasts(ImDrawList* dl, float dt) {
   const float w = std::max(Px(420), text_w + h + Px(48));
   const ImVec2 p0(std::floor((display_.x - w) * 0.5f), std::floor(display_.y - Px(150) + (1.0f - in) * Px(30)));
   const ImVec2 p1(p0.x + w, p0.y + h);
-  Shadow(dl, p0, p1, h * 0.5f, Px(20), a);
-  dl->AddRectFilled(p0, p1, WithAlpha(color::kPopup, a), h * 0.5f);
-  dl->AddRect(p0, p1, WithAlpha(IM_COL32(255, 255, 255, 30), a), h * 0.5f, 0, Px(1.5f));
+  if (!GlassPanel(dl, p0, p1, h * 0.5f, color::kPopup, 0.6f, a)) {
+    Shadow(dl, p0, p1, h * 0.5f, Px(20), a);
+    dl->AddRectFilled(p0, p1, WithAlpha(color::kPopup, a), h * 0.5f);
+    dl->AddRect(p0, p1, WithAlpha(IM_COL32(255, 255, 255, 30), a), h * 0.5f, 0, Px(1.5f));
+  }
   const ImVec2 ic(p0.x + h * 0.5f, p0.y + h * 0.5f);
   const float r = h * 0.5f - Px(9);
   if (t.ring_player >= 0) {

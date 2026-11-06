@@ -32,6 +32,7 @@ void GuideDialog::Draw(ImDrawList* dl) {
 }
 
 bool GuideDialog::DrawBlurredGame(ImDrawList* dl, float a) {
+  glass_backdrop_ = ImTextureID_Invalid;
   if ((!config_.game_frame && !config_.blurred_game_frame) || display_.x <= 0 || display_.y <= 0) return false;
   // How blurred is the theme's (0.5: the console's look): 0.5 is a sigma of 10
   // (at 1080p), 1.0 about 14.
@@ -44,6 +45,8 @@ bool GuideDialog::DrawBlurredGame(ImDrawList* dl, float a) {
     rex::ui::ImmediateTexture* frame = config_.blurred_game_frame(sigma, uv);
     if (!frame) return false;
     dl->AddImage(reinterpret_cast<ImTextureID>(frame), ImVec2(0, 0), display_, ImVec2(uv[0], uv[1]), ImVec2(uv[2], uv[3]), WithAlpha(color::kWhite, a));
+    glass_backdrop_ = reinterpret_cast<ImTextureID>(frame);
+    glass_backdrop_uv_ = ImVec4(uv[0], uv[1], uv[2], uv[3]);
     return true;
   }
 
@@ -144,7 +147,10 @@ void GuideDialog::DrawGuide(ImDrawList* dl, float a) {
     const ImDrawFlags corners = !see_through ? ImDrawFlags_None
                                 : left       ? ImDrawFlags_RoundCornersLeft
                                              : ImDrawFlags_RoundCornersRight;
-    dl->AddRectFilled(b0, b1, WithAlpha(level == 1 ? color::kSideBlade : color::kSideBladeFar, a), Px(10), corners);
+    // As glass they're frosted panes of their own colour, rounded only on the outside.
+    const ImU32 fill = level == 1 ? color::kSideBlade : color::kSideBladeFar;
+    const ImDrawFlags outside = left ? ImDrawFlags_RoundCornersLeft : ImDrawFlags_RoundCornersRight;
+    if (!GlassPanel(dl, b0, b1, Px(10), fill, 0.62f, a, see_through ? outside : ImDrawFlags_RoundCornersAll)) dl->AddRectFilled(b0, b1, WithAlpha(fill, a), Px(10), corners);
     const float lx = left ? x_out + strip * 0.5f : x_out - strip * 0.5f;
     const std::string label = BladeLabel(b);
     TextVertical(dl, Regular(), Px(26), ImVec2(lx, (b0.y + b1.y) * 0.5f), WithAlpha(color::kSideText, a), label);
@@ -154,11 +160,14 @@ void GuideDialog::DrawGuide(ImDrawList* dl, float a) {
   for (int b = int(blades_.size()) - 1; b > blade_; --b) side(b, b - blade_, false);
 
   // Open blade.
-  BladeShadow(dl, p0, p1, round, Px(28), a);
-  dl->AddRectFilled(p0, p1, WithAlpha(color::kBlade, a * BladeSeeThrough()), round);
+  if (!GlassPanel(dl, p0, p1, round, color::kBlade, 0.5f, a)) {
+    BladeShadow(dl, p0, p1, round, Px(28), a);
+    dl->AddRectFilled(p0, p1, WithAlpha(color::kBlade, a * BladeSeeThrough()), round);
+  }
   DrawThemeBackground(dl, p0, p1, round, a);
   const ImVec2 s0(p0.x + Px(9), p0.y + Px(9)), s1(p0.x + Px(9) + Px(72), p1.y - Px(9));
-  dl->AddRectFilled(s0, s1, WithAlpha(color::kBladeStrip, a * StripSeeThrough()), Px(8));
+  // The strip sits on the blade's glass, so it shows the blade rather than the game.
+  if (!GlassPanel(dl, s0, s1, Px(8), color::kBladeStrip, 0.45f, a, 0, false, false)) dl->AddRectFilled(s0, s1, WithAlpha(color::kBladeStrip, a * StripSeeThrough()), Px(8));
   const ImVec2 icon_c((s0.x + s1.x) * 0.5f, s0.y + Px(38));
   DrawBladeIcon(dl, blade_, icon_c, a);
   const std::string label = BladeLabel(blade_);
@@ -290,11 +299,13 @@ void GuideDialog::DrawSignIn(ImDrawList* dl, float a) {
   const float w = Px(720), h = Px(470);
   const ImVec2 c(display_.x * 0.5f, display_.y * 0.5f + (1.0f - a) * Px(16));
   const ImVec2 p0(std::floor(c.x - w * 0.5f), std::floor(c.y - h * 0.5f)), p1(p0.x + w, p0.y + h);
-  BladeShadow(dl, p0, p1, Px(12), Px(28), a);
-  dl->AddRectFilled(p0, p1, WithAlpha(color::kBlade, a * BladeSeeThrough()), Px(12));
+  if (!GlassPanel(dl, p0, p1, Px(12), color::kBlade, 0.5f, a)) {
+    BladeShadow(dl, p0, p1, Px(12), Px(28), a);
+    dl->AddRectFilled(p0, p1, WithAlpha(color::kBlade, a * BladeSeeThrough()), Px(12));
+  }
   DrawThemeBackground(dl, p0, p1, Px(12), a);
   const ImVec2 s0(p0.x + Px(9), p0.y + Px(9)), s1(p0.x + Px(81), p1.y - Px(9));
-  dl->AddRectFilled(s0, s1, WithAlpha(color::kBladeStrip, a * StripSeeThrough()), Px(8));
+  if (!GlassPanel(dl, s0, s1, Px(8), color::kBladeStrip, 0.45f, a, 0, false, false)) dl->AddRectFilled(s0, s1, WithAlpha(color::kBladeStrip, a * StripSeeThrough()), Px(8));
   const ImVec2 icon_c((s0.x + s1.x) * 0.5f, s0.y + Px(38));
   // The player signing in, lit on the ring.
   DrawRing(dl, icon_c, a, true);
