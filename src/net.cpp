@@ -1518,6 +1518,20 @@ extern "C" REX_FUNC(__imp__NetDll_XNetGetEthernetLinkStatus) {
   Return(ctx, 0x01 | 0x02 | 0x08);
 }
 
+// XNetRandom(BYTE*, UINT) -> 0. Titles use it for session nonces and keys, so
+// it comes from the OS entropy source rather than a seeded generator.
+extern "C" REX_FUNC(__imp__NetDll_XNetRandom) {
+  uint8_t* out = At(Arg(ctx, 1));
+  const uint32_t length = Arg(ctx, 2);
+  if (!out) return Return(ctx, length ? kWsaEInval : 0);
+  thread_local std::random_device entropy;
+  for (uint32_t i = 0; i < length; i += sizeof(uint32_t)) {
+    const uint32_t word = entropy();
+    std::memcpy(out + i, &word, std::min<uint32_t>(sizeof(word), length - i));
+  }
+  Return(ctx, 0);
+}
+
 // XNetXnAddrToInAddr(XNADDR*, XNKID*, IN_ADDR*)
 extern "C" REX_FUNC(__imp__NetDll_XNetXnAddrToInAddr) {
   const uint8_t* in = At(Arg(ctx, 1));
