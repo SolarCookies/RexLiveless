@@ -41,16 +41,15 @@ bool GuideDialog::DrawBlurredGame(ImDrawList* dl, float a) {
 
   // Blurred by the app: one copy.
   if (config_.blurred_game_frame && blur >= 0.01f) {
-    rex::ui::ImmediateTexture* frame = config_.blurred_game_frame(sigma, uv);
-    if (!frame) return false;
-    dl->AddImage(reinterpret_cast<ImTextureID>(frame), ImVec2(0, 0), display_, ImVec2(uv[0], uv[1]), ImVec2(uv[2], uv[3]), WithAlpha(color::kWhite, a));
+    const ImTextureID frame = config_.blurred_game_frame(sigma, uv);
+    if (frame == ImTextureID_Invalid) return false;
+    dl->AddImage(frame, ImVec2(0, 0), display_, ImVec2(uv[0], uv[1]), ImVec2(uv[2], uv[3]), WithAlpha(color::kWhite, a));
     return true;
   }
 
   if (!config_.game_frame) return false;
-  rex::ui::ImmediateTexture* frame = config_.game_frame(uv);
-  if (!frame) return false;
-  const ImTextureID tex = reinterpret_cast<ImTextureID>(frame);
+  const ImTextureID tex = config_.game_frame(uv);
+  if (tex == ImTextureID_Invalid) return false;
   if (blur < 0.01f) {
     dl->AddImage(tex, ImVec2(0, 0), display_, ImVec2(uv[0], uv[1]), ImVec2(uv[2], uv[3]), WithAlpha(color::kWhite, a));
     return true;

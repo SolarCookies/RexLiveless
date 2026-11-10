@@ -51,7 +51,7 @@ std::string Shown(std::string_view label) {
 Row LookRow(std::string_view label, const Menu::Look& look) {
   Row row{.label = Shown(label), .sub = look.sub, .detail = look.detail};
   if (look.icon) {
-    row.lazy_icon = [icon = look.icon](bool* loading) { return reinterpret_cast<ImTextureID>(icon(loading)); };
+    row.lazy_icon = look.icon;
   }
   row.icon_dim = look.icon_dim;
   row.disabled = look.disabled;
@@ -394,7 +394,7 @@ Menu::ListsAction Menu::Lists(std::string_view label, const ListsDef& def) {
   for (int side = 0; side < 2; ++side) {
     for (const Item& item : side ? def.right : def.left) {
       RowLists::Item shown{item.id, item.label, item.sub};
-      if (item.icon) shown.icon = [icon = item.icon](bool* loading) { return reinterpret_cast<ImTextureID>(icon(loading)); };
+      if (item.icon) shown.icon = item.icon;
       if (item.page) openers[item.id] = s.Opener(id + kMenuItem + item.id, item.label);
       lists->items[side].push_back(std::move(shown));
     }
@@ -435,10 +435,10 @@ void Menu::Text(std::string_view text, Tone tone) {
   s.rows->push_back(std::move(row));
 }
 
-void Menu::Image(rex::ui::ImmediateTexture* texture, float aspect, float max_height) {
+void Menu::Image(ImTextureID texture, float aspect, float max_height) {
   State& s = *state_;
   if (!s.Here()) return;
-  s.rows->push_back({.picture = reinterpret_cast<ImTextureID>(texture),
+  s.rows->push_back({.picture = texture,
                      .picture_aspect = aspect > 0.0f ? aspect : 1.0f,
                      .picture_height = max_height});
 }

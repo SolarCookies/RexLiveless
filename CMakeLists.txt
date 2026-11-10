@@ -12,6 +12,7 @@ function(rexglue_guide_attach target)
   set(sources
     ${dir}/src/assets.cpp
     ${dir}/src/audio.cpp
+    ${dir}/src/enumerator.cpp
     ${dir}/src/file_picker.cpp
     ${dir}/src/guest.cpp
     ${dir}/src/guide.cpp

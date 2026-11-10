@@ -28,12 +28,10 @@
 #include <unordered_set>
 #include <vector>
 
-#include <rex/logging.h>
-#include <rex/system/xevent.h>
-
 #include "guest.h"
 #include "live.h"
 #include "live_sessions.h"
+#include "log.h"
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -406,7 +404,7 @@ void NoteObserved(uint32_t token, uint32_t ip, uint16_t title_port, uint16_t por
     if (!slot) slot = &peer.observed_ports[0];
     if (slot->title_port != title_port || slot->port != port) {
       const uint32_t host = ntohl(ip);
-      REXKRNL_INFO("RexLiveless: peer heard directly from {}.{}.{}.{}:{} (its title port {})", host >> 24, (host >> 16) & 255,
+      RG_INFO("RexLiveless: peer heard directly from {}.{}.{}.{}:{} (its title port {})", host >> 24, (host >> 16) & 255,
                   (host >> 8) & 255, host & 255, port, title_port);
     }
     *slot = {title_port, port};
@@ -856,9 +854,7 @@ void FinishOverlapped(const Overlapped& o) {
   Store32(ov + 0, o.error ? o.error : 0);
   Store32(ov + 4, o.bytes);
   const uint32_t event = Load32(ov + 0xC);
-  if (event) {
-    if (auto ev = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XEvent>(event)) ev->Set(0, false);
-  }
+  if (event) SignalEvent(event, true);
 }
 
 // Tries to make progress on a socket's oldest overlapped request.
@@ -1003,12 +999,12 @@ uint16_t PortOffset() {
       g_reservations[uint16_t(kBasePort - 1 + offset)] = a;
       g_reservations[uint16_t(kBasePort + offset)] = b;
       g_offset = offset;
-      REXKRNL_INFO("Rexglue Guide: System Link port offset {} (slot {})", offset, slot);
+      RG_INFO("Rexglue Guide: System Link port offset {} (slot {})", offset, slot);
       return g_offset;
     }
     if (a != kBadNative) CloseNative(a);
   }
-  REXKRNL_WARN("Rexglue Guide: every System Link port slot is taken; using offset 0");
+  RG_WARN("Rexglue Guide: every System Link port slot is taken; using offset 0");
   return g_offset;
 }
 
@@ -1187,7 +1183,7 @@ extern "C" REX_FUNC(__imp__NetDll_bind) {
   const sockaddr_in addr = Native(htonl(INADDR_ANY), port);
   if (bind(s->fd, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr)) != 0) {
     t_last_error = NativeError();
-    REXKRNL_ERROR("Rexglue Guide: bind to port {} failed ({})", port, t_last_error);
+    RG_ERROR("Rexglue Guide: bind to port {} failed ({})", port, t_last_error);
     return Return(ctx, kSocketError);
   }
   sockaddr_in bound{};
@@ -1564,7 +1560,7 @@ extern "C" REX_FUNC(__imp__NetDll_XNetUnregisterInAddr) {
 
 // XNetServerToInAddr(IN_ADDR server, DWORD service_id, IN_ADDR*)
 extern "C" REX_FUNC(__imp__NetDll_XNetServerToInAddr) {
-  REXKRNL_INFO("Rexglue Guide: XNetServerToInAddr({:08X}, service {:08X})", Arg(ctx, 1), Arg(ctx, 2));
+  RG_INFO("Rexglue Guide: XNetServerToInAddr({:08X}, service {:08X})", Arg(ctx, 1), Arg(ctx, 2));
   if (uint8_t* out = At(Arg(ctx, 3))) Store32(out, kServerToken);
   Return(ctx, 0);
 }
@@ -1596,7 +1592,7 @@ extern "C" REX_FUNC(__imp__NetDll_XNetQosLookup) {
   }
   uint32_t size = 8 + 32 * count;
   for (const auto& d : data) size += uint32_t((d.size() + 7) & ~size_t(7));
-  const uint32_t qos = REX_KERNEL_MEMORY()->SystemHeapAlloc(size);
+  const uint32_t qos = SystemHeapAlloc(size);
   uint8_t* q = At(qos);
   std::memset(q, 0, size);
   Store32(q, count);
@@ -1623,9 +1619,7 @@ extern "C" REX_FUNC(__imp__NetDll_XNetQosLookup) {
     g_live_qos.insert(qos);
   }
   if (out) Store32(out, qos);
-  if (event) {
-    if (auto ev = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XEvent>(event)) ev->Set(0, false);
-  }
+  if (event) SignalEvent(event, true);
   Return(ctx, 0);
 }
 
@@ -1636,7 +1630,7 @@ extern "C" REX_FUNC(__imp__NetDll_XNetQosRelease) {
     std::lock_guard lock(g_qos_mutex);
     if (!g_live_qos.erase(qos)) return Return(ctx, 0);
   }
-  REX_KERNEL_MEMORY()->SystemHeapFree(qos);
+  SystemHeapFree(qos);
   Return(ctx, 0);
 }
 

@@ -1,22 +1,6 @@
 #pragma once
-/**
- * Rexglue Guide: an Xbox 360 style Guide (accounts, friends, notifications,
- * achievements) for rexglue projects.
- *
- * Setup in a rex::ReXApp subclass:
- *   void OnConfigureFonts(ImFontAtlas* atlas) override {
- *     rexglue_guide::ConfigureFonts(atlas);
- *   }
- *   void OnCreateDialogs(rex::ui::ImGuiDrawer* drawer) override {
- *     rexglue_guide::AddCredit("Your Name", "Programming");
- *     rexglue_guide::Install(this, drawer, {.title_name = "My Game",
- *                                           .immediate_drawer = immediate_drawer()});
- *   }
- *   void OnShutdown() override { rexglue_guide::Shutdown(); }
- *   bool WantsUIInputMode() const override { return rexglue_guide::IsOpen(); }
- *
- * CMake: rexglue_guide_attach(<target>) after add_executable().
- */
+// Rexglue Guide: an Xbox 360 style Guide (accounts, friends, notifications, achievements).
+// Call Configure from OnConfigure, then ConfigureFonts and Install from OnInit, and Shutdown from OnShutdown.
 
 #include <cstddef>
 #include <cstdint>
@@ -27,15 +11,14 @@
 #include <string_view>
 #include <vector>
 
-struct ImFontAtlas;
+#include <imgui.h>
+#include <rex/result.h>
 
 namespace rex {
-class ReXApp;
+class SettingsRegistry;
 }
 namespace rex::ui {
-class ImGuiDrawer;
-class ImmediateDrawer;
-class ImmediateTexture;
+class IUISystem;
 }
 
 namespace rexglue_guide {
@@ -64,9 +47,11 @@ struct Config {
   // account is remembered. Unset: it does. Either way the Guide button and the
   // title's own sign-in prompt open it.
   std::function<bool()> sign_in_at_startup;
-  // What the Guide's icons, gamerpics and achievement icons are uploaded
-  // through: the app's ReXApp::immediate_drawer().
-  rex::ui::ImmediateDrawer* immediate_drawer = nullptr;
+  // Makes an RGBA8 texture for the UI system's ImGui (linear, clamped), or ImTextureID_Invalid.
+  // The Guide's icons, gamerpics and achievement icons go through it; without it they don't show.
+  std::function<ImTextureID(uint32_t width, uint32_t height, const uint8_t* rgba)> create_texture;
+  // Frees one create_texture made. Frames already recorded with it must keep drawing it.
+  std::function<void(ImTextureID texture)> destroy_texture;
   // The app's own on-screen keyboard, used for the Guide's text entry when set;
   // otherwise the Guide draws its own.
   std::function<void(const TextInput&, TextInputDone)> show_keyboard;
@@ -76,23 +61,22 @@ struct Config {
   // account. Unset: the same index.
   std::function<int(int controller)> player_for_controller;
   // Optional, called each frame the Guide is up: the game's frame as last
-  // shown, as a texture of immediate_drawer's, and the part of it on screen
-  // (uv: u0, v0, u1, v1); nullptr when there's none. Set, the Guide blurs the
-  // live game behind it; unset, it just darkens it.
-  std::function<rex::ui::ImmediateTexture*(float uv[4])> game_frame;
+  // shown, as a texture of the UI system's ImGui, and the part of it on screen
+  // (uv: u0, v0, u1, v1); ImTextureID_Invalid when there's none. Set, the Guide
+  // blurs the live game behind it; unset, it just darkens it.
+  std::function<ImTextureID(float uv[4])> game_frame;
   // Optional, preferred over game_frame: the same frame already blurred by a
   // Gaussian of `sigma` window pixels, by the app's renderer. The Guide then
   // draws it once; blurring game_frame itself takes it up to 121 full-window
   // copies a frame, which slower GPUs feel. Also gets uv as game_frame does.
-  std::function<rex::ui::ImmediateTexture*(float sigma, float uv[4])> blurred_game_frame;
-  // System Settings > Config saves the game's settings (cvars) here, as the
-  // F4 settings overlay does; unset, changes there last until the game closes.
+  std::function<ImTextureID(float sigma, float uv[4])> blurred_game_frame;
+  // System Settings > Config saves the game's settings here, as the settings
+  // overlay does; unset, changes there last until the game closes.
   std::filesystem::path config_file;
-  // Optional: saves the settings instead, for an app with a config writer of its own. The SDK's
-  // rex::cvar::SaveConfig writes strings unescaped, so a Windows path in any setting breaks the file.
+  // Optional: saves the settings instead, for an app with a config writer of its own.
   std::function<void()> save_settings;
-  // Optional: whether Config lists a setting, by cvar name (e.g. to leave out
-  // ones the app hides). Unset: all of them but console commands.
+  // Optional: whether Config lists a setting, by full name (e.g. to leave out
+  // ones the app hides). Unset: all of them.
   std::function<bool(std::string_view name)> show_setting;
   // Optional: why leaderboard scores and replays (XSessionWriteStats, game
   // clips) can't be posted now, e.g. "cheats are on"; empty when they can.
@@ -104,17 +88,21 @@ struct Config {
   std::string build;
 };
 
+// Registers the Guide's settings (scope "guide") and its log category. Call from OnConfigure.
+[[nodiscard]] rex::Result<void> Configure(rex::SettingsRegistry& settings);
+
 // Adds a line to Settings > Credits. Call before or after Install; credits show
 // in the order added, followed by the Guide's own.
 void AddCredit(std::string who, std::string what);
 
-// Adds the Guide's fonts. Call from ReXApp::OnConfigureFonts.
+// Adds the Guide's fonts to the UI system's atlas (IUISystem::GetFonts). Call from OnInit, before Install.
 void ConfigureFonts(ImFontAtlas* atlas);
 
-// Creates the Guide. Call once from ReXApp::OnCreateDialogs, after the app's
-// own dialogs so the Guide draws on top of them.
-void Install(rex::ReXApp* app, rex::ui::ImGuiDrawer* drawer, Config config = {});
+// Creates the Guide as a dialog of the UI system. Call once from OnInit on the UI thread, after
+// the app's own dialogs so the Guide draws on top of them.
+void Install(rex::ui::IUISystem& ui, Config config = {});
 
+// Removes the Guide and frees its textures. Call from OnShutdown on the UI thread.
 void Shutdown();
 
 // True while the Guide or the sign-in screen is up; game input should be held.
@@ -220,7 +208,7 @@ class Menu {
     // A picture on the left, asked for only while the row is on screen, so a
     // long list of downloaded icons fetches only what's seen. Null while
     // there's none yet; setting *loading shows a spinner in its place.
-    std::function<rex::ui::ImmediateTexture*(bool* loading)> icon;
+    std::function<ImTextureID(bool* loading)> icon;
     bool icon_dim = false;
     // Greyed, and choosing it does nothing. The row keeps its place, so rows
     // below it don't move under the player's selection.
@@ -261,7 +249,7 @@ class Menu {
     std::string id;  // what tells it apart, and what an action names
     std::string label;
     std::string sub;  // a second line
-    std::function<rex::ui::ImmediateTexture*(bool* loading)> icon;  // as Look::icon
+    std::function<ImTextureID(bool* loading)> icon;  // as Look::icon
     // What choosing it opens, titled with its label; without one, choosing it
     // is a kOpen action.
     std::function<void(Menu&)> page;
@@ -291,11 +279,11 @@ class Menu {
   ListsAction Lists(std::string_view label, const ListsDef& lists);
 
   // Rows that aren't picked: a heading, wrapped text, and a picture as wide as
-  // the menu (a texture of Config::immediate_drawer's; null shows its place),
+  // the menu (a texture of the UI system's ImGui; ImTextureID_Invalid shows its place),
   // width over height, no taller than max_height (pixels at 1080p).
   void Header(std::string_view text);
   void Text(std::string_view text, Tone tone = Tone::kNormal);
-  void Image(rex::ui::ImmediateTexture* texture, float aspect, float max_height = 360.0f);
+  void Image(ImTextureID texture, float aspect, float max_height = 360.0f);
   // How far something has got: the label and detail over a bar, `fraction`
   // (0..1) of it filled. Below 0, it's under way but how far isn't known, and
   // a stripe sweeps along the bar.
